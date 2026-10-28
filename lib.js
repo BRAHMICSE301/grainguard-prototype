@@ -40,41 +40,33 @@
   }
 
   /* ---------- Weather ---------- */
-  var WEATHER_CODES = {
-    0: 'Clear sky', 1: 'Mostly clear', 2: 'Partly cloudy', 3: 'Overcast',
-    45: 'Fog', 48: 'Fog', 51: 'Light drizzle', 53: 'Drizzle', 55: 'Heavy drizzle',
-    61: 'Light rain', 63: 'Rain', 65: 'Heavy rain', 66: 'Freezing rain', 67: 'Freezing rain',
-    71: 'Light snow', 73: 'Snow', 75: 'Heavy snow', 80: 'Rain showers', 81: 'Rain showers',
-    82: 'Heavy showers', 95: 'Thunderstorm', 96: 'Thunderstorm with hail', 99: 'Thunderstorm with hail'
-  };
-  function weatherLabel(code) {
-    return WEATHER_CODES.hasOwnProperty(code) ? WEATHER_CODES[code] : 'Conditions unavailable';
+  /* Text lives in i18n.js. This file returns message keys so the page can show them in any language. */
+  var WEATHER_CODES = { 0: 1, 1: 1, 2: 1, 3: 1, 45: 1, 48: 1, 51: 1, 53: 1, 55: 1, 61: 1, 63: 1, 65: 1, 66: 1, 67: 1,
+    71: 1, 73: 1, 75: 1, 80: 1, 81: 1, 82: 1, 95: 1, 96: 1, 99: 1 };
+  function weatherKey(code) {
+    return WEATHER_CODES.hasOwnProperty(code) ? 'wx_' + code : 'wx_unknown';
   }
 
-  /* General guidance only. Thresholds are simple rules of thumb, not a scientific model. */
+  /* General guidance only. Thresholds are simple rules of thumb, not a scientific model.
+     Returns reasons as {key, n} so the page can translate and fill in the number. */
   function storageRisk(w) {
     var score = 0;
     var reasons = [];
     if (typeof w.humidity === 'number') {
-      if (w.humidity >= 80) { score += 2; reasons.push('Humidity is high (' + Math.round(w.humidity) + '%). Stored grain takes up moisture from damp air.'); }
-      else if (w.humidity >= 65) { score += 1; reasons.push('Humidity is moderate (' + Math.round(w.humidity) + '%). Keep an eye on damp patches.'); }
+      if (w.humidity >= 80) { score += 2; reasons.push({ key: 'r_hum_high', n: Math.round(w.humidity) }); }
+      else if (w.humidity >= 65) { score += 1; reasons.push({ key: 'r_hum_mid', n: Math.round(w.humidity) }); }
     }
     if (typeof w.rainProb === 'number') {
-      if (w.rainProb >= 60) { score += 2; reasons.push('Rain is likely today (' + Math.round(w.rainProb) + '% chance).'); }
-      else if (w.rainProb >= 30) { score += 1; reasons.push('Some chance of rain today (' + Math.round(w.rainProb) + '%).'); }
+      if (w.rainProb >= 60) { score += 2; reasons.push({ key: 'r_rain_high', n: Math.round(w.rainProb) }); }
+      else if (w.rainProb >= 30) { score += 1; reasons.push({ key: 'r_rain_mid', n: Math.round(w.rainProb) }); }
     }
     if (typeof w.temp === 'number' && w.temp >= 35) {
       score += 1;
-      reasons.push('It is hot (' + Math.round(w.temp) + ' C). Insects become more active in heat.');
+      reasons.push({ key: 'r_hot', n: Math.round(w.temp) });
     }
     var level = score >= 3 ? 'high' : score >= 1 ? 'medium' : 'low';
-    var advice = {
-      low: 'Conditions are favourable. Keep stores closed, dry and ventilated, and continue routine checks.',
-      medium: 'Watch for dampness. Keep bags off the floor and away from walls, and check for damp patches or a musty smell.',
-      high: 'Damp conditions raise the risk of mould and insects. Keep grain covered and off the ground, avoid opening stores in rain, and check moisture before and after wet spells.'
-    }[level];
-    if (!reasons.length) reasons.push('No weather risk factors found in the current reading.');
-    return { level: level, score: score, reasons: reasons, advice: advice };
+    if (!reasons.length) reasons.push({ key: 'r_none', n: null });
+    return { level: level, score: score, reasons: reasons, adviceKey: 'adv_' + level };
   }
 
   /* ---------- Monitoring thresholds (wheat, for demonstration) ---------- */
@@ -120,7 +112,7 @@
         'nwr["amenity"="storage"]' + around + ';'
       ].join('');
     }
-    return '[out:json][timeout:15];(' + body + ');out center 60;';
+    return '[out:json][timeout:20];(' + body + ');out center 60;';
   }
 
   function parseOverpass(json, lat, lon, kind) {
@@ -131,12 +123,13 @@
       var elon = typeof e.lon === 'number' ? e.lon : (e.center && e.center.lon);
       if (typeof elat !== 'number' || typeof elon !== 'number') return;
       var tags = e.tags || {};
-      var fallback = kind === 'support'
-        ? (tags.shop === 'agrarian' ? 'Agricultural supply shop' : tags.amenity === 'marketplace' ? 'Marketplace' : 'Agriculture office')
-        : (tags.man_made === 'silo' ? 'Silo' : 'Warehouse');
+      var kindKey = kind === 'support'
+        ? (tags.shop === 'agrarian' ? 'k_shop' : tags.amenity === 'marketplace' ? 'k_market' : 'k_office')
+        : (tags.man_made === 'silo' ? 'k_silo' : 'k_warehouse');
       out.push({
         id: e.type + '/' + e.id,
-        name: tags.name || tags['name:en'] || (fallback + ' (unnamed on OpenStreetMap)'),
+        name: tags.name || tags['name:en'] || '',
+        kindKey: kindKey,
         named: !!(tags.name || tags['name:en']),
         lat: elat,
         lon: elon,
@@ -151,23 +144,61 @@
     return out.slice(0, 30);
   }
 
+  /* ---------- Nominatim search fallback (used when Overpass servers are busy) ---------- */
+  function nominatimViewbox(lat, lon, radiusKm) {
+    var r = Math.max(1, Math.min(50, Number(radiusKm) || 25));
+    var dLat = r / 111;
+    var dLon = r / (111 * Math.max(0.2, Math.cos(lat * Math.PI / 180)));
+    /* viewbox order is left,top,right,bottom = lon_min,lat_max,lon_max,lat_min */
+    return [lon - dLon, lat + dLat, lon + dLon, lat - dLat].map(function (n) { return n.toFixed(5); }).join(',');
+  }
+
+  function parseNominatimPlaces(list, lat, lon, radiusKm) {
+    var seen = {};
+    var out = [];
+    (list || []).forEach(function (r) {
+      var elat = parseFloat(r.lat), elon = parseFloat(r.lon);
+      if (!isFinite(elat) || !isFinite(elon)) return;
+      var key = r.osm_type + '/' + r.osm_id;
+      if (seen[key]) return;
+      seen[key] = true;
+      var d = haversineKm(lat, lon, elat, elon);
+      if (radiusKm && d > radiusKm * 1.05) return; /* viewbox is a square, so trim the corners */
+      var name = r.name || (r.display_name ? String(r.display_name).split(',')[0].trim() : '');
+      out.push({
+        id: key,
+        name: name || '',
+        kindKey: 'k_place',
+        named: !!name,
+        lat: elat,
+        lon: elon,
+        distanceKm: d,
+        operator: ''
+      });
+    });
+    out.sort(function (a, b) { return a.distanceKm - b.distanceKm; });
+    return out.slice(0, 30);
+  }
+
   /* ---------- Greeting ---------- */
-  function greeting(hour) {
-    if (hour < 12) return 'Good morning';
-    if (hour < 17) return 'Good afternoon';
-    return 'Good evening';
+  function greetingKey(hour) {
+    if (hour < 12) return 'greet_morning';
+    if (hour < 17) return 'greet_afternoon';
+    return 'greet_evening';
   }
 
   return {
     parseAddress: parseAddress,
     haversineKm: haversineKm,
-    weatherLabel: weatherLabel,
+    weatherKey: weatherKey,
     storageRisk: storageRisk,
     THRESHOLDS: THRESHOLDS,
     fieldStatus: fieldStatus,
     readingStatus: readingStatus,
     buildOverpassQuery: buildOverpassQuery,
     parseOverpass: parseOverpass,
-    greeting: greeting
+    nominatimViewbox: nominatimViewbox,
+    parseNominatimPlaces: parseNominatimPlaces,
+    greetingKey: greetingKey
   };
 });
