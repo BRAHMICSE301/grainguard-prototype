@@ -110,7 +110,7 @@
       body = [
         'nwr["shop"="agrarian"]' + around + ';',
         'nwr["amenity"="marketplace"]' + around + ';',
-        'nwr["office"="government"]["name"~"Agricult|Krishi|Mandi|Kisan",i]' + around + ';'
+        'nwr["office"="government"]["government"="agriculture"]' + around + ';'
       ].join('');
     } else {
       body = [
@@ -120,7 +120,7 @@
         'nwr["amenity"="storage"]' + around + ';'
       ].join('');
     }
-    return '[out:json][timeout:25];(' + body + ');out center 60;';
+    return '[out:json][timeout:15];(' + body + ');out center 60;';
   }
 
   function parseOverpass(json, lat, lon, kind) {
