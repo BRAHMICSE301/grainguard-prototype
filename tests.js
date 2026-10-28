@@ -2,6 +2,7 @@
 'use strict';
 const assert = require('assert');
 const L = require('./lib.js');
+const I = require('./i18n.js');
 
 let passed = 0;
 function t(name, fn) {
@@ -62,7 +63,7 @@ t('buildOverpassQuery: clamps radius and includes coordinates', () => {
   assert.ok(s.includes('"shop"="agrarian"'));
   assert.ok(L.buildOverpassQuery('storage', 28, 77, 'abc').includes('around:25000'));
   assert.ok(!s.includes('~'), 'support query should not use slow regex matching');
-  assert.ok(s.includes('[timeout:15]'));
+  assert.ok(s.includes('[timeout:20]'));
 });
 
 t('parseOverpass: nodes, ways with center, unnamed fallback, sorting', () => {
@@ -76,7 +77,9 @@ t('parseOverpass: nodes, ways with center, unnamed fallback, sorting', () => {
   assert.strictEqual(out.length, 3);
   assert.strictEqual(out[0].name, 'Near Store');
   assert.strictEqual(out[1].name, 'Far Silo');
-  assert.ok(out[2].name.includes('unnamed'));
+  assert.strictEqual(out[2].name, '');
+  assert.strictEqual(out[2].kindKey, 'k_warehouse');
+  assert.strictEqual(out[1].kindKey, 'k_silo');
   assert.strictEqual(out[0].operator, 'State Warehousing Corporation');
 });
 t('parseOverpass: empty or bad input', () => {
@@ -84,12 +87,92 @@ t('parseOverpass: empty or bad input', () => {
   assert.deepStrictEqual(L.parseOverpass({}, 0, 0, 'storage'), []);
 });
 
-t('weatherLabel and greeting', () => {
-  assert.strictEqual(L.weatherLabel(0), 'Clear sky');
-  assert.strictEqual(L.weatherLabel(12345), 'Conditions unavailable');
-  assert.strictEqual(L.greeting(9), 'Good morning');
-  assert.strictEqual(L.greeting(14), 'Good afternoon');
-  assert.strictEqual(L.greeting(20), 'Good evening');
+t('nominatimViewbox: order and size', () => {
+  const [l, tp, r, b] = L.nominatimViewbox(28.4, 77.3, 25).split(',').map(Number);
+  assert.ok(l < 77.3 && r > 77.3 && tp > 28.4 && b < 28.4);
+  assert.ok(Math.abs((tp - b) - 2 * 25 / 111) < 0.01);
+});
+t('parseNominatimPlaces: dedupe, trim, sort, names', () => {
+  const list = [
+    { osm_type: 'node', osm_id: 1, lat: '28.41', lon: '77.31', name: 'Kisan Godown' },
+    { osm_type: 'node', osm_id: 1, lat: '28.41', lon: '77.31', name: 'Kisan Godown' },
+    { osm_type: 'way', osm_id: 2, lat: '28.50', lon: '77.40', display_name: 'City Warehouse, Faridabad, Haryana' },
+    { osm_type: 'way', osm_id: 3, lat: '29.9', lon: '78.9', name: 'Too far' },
+    { osm_type: 'way', osm_id: 4, lat: 'bad', lon: '77', name: 'Broken' }
+  ];
+  const out = L.parseNominatimPlaces(list, 28.4, 77.3, 25);
+  assert.strictEqual(out.length, 2);
+  assert.strictEqual(out[0].name, 'Kisan Godown');
+  assert.strictEqual(out[1].name, 'City Warehouse');
+  assert.deepStrictEqual(L.parseNominatimPlaces(null, 0, 0, 10), []);
+});
+
+t('weatherKey and greetingKey', () => {
+  assert.strictEqual(L.weatherKey(0), 'wx_0');
+  assert.strictEqual(L.weatherKey(95), 'wx_95');
+  assert.strictEqual(L.weatherKey(12345), 'wx_unknown');
+  assert.strictEqual(L.greetingKey(9), 'greet_morning');
+  assert.strictEqual(L.greetingKey(14), 'greet_afternoon');
+  assert.strictEqual(L.greetingKey(20), 'greet_evening');
+});
+
+t('storageRisk returns message keys that exist in both languages', () => {
+  const r = L.storageRisk({ temp: 38, humidity: 85, rainProb: 70 });
+  const keys = r.reasons.map(x => x.key).concat([r.adviceKey, 'risk_' + r.level]);
+  keys.forEach(k => { assert.ok(I.STRINGS.en[k] && I.STRINGS.hi[k], 'missing key ' + k); });
+  assert.strictEqual(r.level, 'high');
+  assert.strictEqual(r.reasons.length, 3);
+  assert.strictEqual(r.reasons[0].n, 85);
+});
+
+t('every weather code the app can return has English and Hindi text', () => {
+  [0, 1, 2, 3, 45, 48, 51, 53, 55, 61, 63, 65, 66, 67, 71, 73, 75, 80, 81, 82, 95, 96, 99, 'x'].forEach(c => {
+    const k = L.weatherKey(c);
+    assert.ok(I.STRINGS.en[k] && I.STRINGS.hi[k], 'missing ' + k);
+  });
+});
+
+/* ---------- i18n ---------- */
+const DEVANAGARI = /[ऀ-ॿ]/;
+const placeholders = (s) => (s.match(/\{\w+\}/g) || []).sort().join(',');
+
+t('i18n: English and Hindi have exactly the same keys', () => {
+  const en = Object.keys(I.STRINGS.en).sort();
+  const hi = Object.keys(I.STRINGS.hi).sort();
+  assert.deepStrictEqual(en, hi);
+  assert.ok(en.length > 150, 'only ' + en.length + ' keys');
+});
+t('i18n: every Hindi string is Devanagari and no string is empty', () => {
+  Object.keys(I.STRINGS.en).forEach((k) => {
+    assert.ok(I.STRINGS.en[k].length > 0, 'empty en ' + k);
+    assert.ok(DEVANAGARI.test(I.STRINGS.hi[k]), 'Hindi text missing for ' + k);
+  });
+});
+t('i18n: placeholders like {n} match between languages', () => {
+  Object.keys(I.STRINGS.en).forEach((k) => {
+    assert.strictEqual(placeholders(I.STRINGS.hi[k]), placeholders(I.STRINGS.en[k]), 'placeholder mismatch in ' + k);
+  });
+});
+t('i18n: no em dashes in any text', () => {
+  ['en', 'hi'].forEach((l) => Object.keys(I.STRINGS[l]).forEach((k) => {
+    assert.ok(!I.STRINGS[l][k].includes('—'), 'em dash in ' + l + ':' + k);
+  }));
+});
+t('i18n: t(), parameters, fallback and language choice', () => {
+  I.setLang('en');
+  assert.strictEqual(I.t('area_yours', { a: 'Gurugram, Haryana' }), 'Your area: Gurugram, Haryana');
+  I.setLang('hi');
+  assert.strictEqual(I.t('area_yours', { a: 'गुरुग्राम, हरियाणा' }), 'आपका इलाका: गुरुग्राम, हरियाणा');
+  assert.strictEqual(I.t('no_such_key'), 'no_such_key');
+  assert.strictEqual(I.tIn('en', 'btn_detect'), 'Use My Current Location');
+  assert.strictEqual(I.setLang('fr'), 'en');
+  assert.strictEqual(I.detect('hi', 'en-IN'), 'hi');
+  assert.strictEqual(I.detect(null, 'hi-IN'), 'hi');
+  assert.strictEqual(I.detect(null, 'en-IN'), 'en');
+  assert.strictEqual(I.detect('junk', 'en-US'), 'en');
+});
+t('i18n: exact required error sentence is unchanged in English', () => {
+  assert.strictEqual(I.tIn('en', 'loc_err_default'), 'Your location could not be detected. You can try again or select your location manually.');
 });
 
 console.log('\n' + passed + ' checks passed' + (process.exitCode ? ', with failures' : ''));
