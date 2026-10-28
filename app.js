@@ -1,10 +1,11 @@
+
 /* Anaj: location service, weather, nearby search, inventory and monitor.
    Depends on lib.js (window.AnajLib). Classic script so it also works without a module server. */
 (function () {
   'use strict';
-
+ 
   var Lib = window.AnajLib;
-
+ 
   /* ---------- Small DOM helpers ---------- */
   function $(sel, root) { return (root || document).querySelector(sel); }
   function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
@@ -37,11 +38,11 @@
     return s;
   }
   var PIN = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg>';
-
+ 
   /* ---------- Location service ---------- */
   var DEMO_PLACE = { locality: '', city: 'Gurugram', district: 'Gurugram', state: 'Haryana', postcode: '', headline: 'Gurugram, Haryana' };
   var DEMO_COORDS = { lat: 28.4595, lon: 77.0266, accuracy: null };
-
+ 
   var Loc = {
     state: { status: 'idle', source: null, coords: null, place: null, geocodeFailed: false, error: null },
     listeners: [],
@@ -49,7 +50,7 @@
     counters: { geocode: 0, weather: 0, overpass: 0 },
     busy: false,
     lastGeocodeAt: 0,
-
+ 
     subscribe: function (fn) { this.listeners.push(fn); },
     note: function (msg) {
       var d = new Date();
@@ -61,7 +62,7 @@
       if (why) this.note(why);
       this.listeners.forEach(function (fn) { try { fn(Loc.state); } catch (e) { console.error(e); } });
     },
-
+ 
     /* Ask the browser for the position. Only called from a user action, or silently when
        permission is already granted (the Permissions API says so), so no surprise prompts. */
     detect: function () {
@@ -95,7 +96,7 @@
         }, { enableHighAccuracy: false, timeout: 12000, maximumAge: 10 * 60 * 1000 });
       });
     },
-
+ 
     /* Reverse geocoding with Nominatim. Rate limited to one request per 1.1 s, cached per
        session at about 1 km precision so we never store precise coordinates. */
     reverse: function (lat, lon) {
@@ -125,7 +126,7 @@
           .catch(function (e) { clearTimeout(timer); console.warn('Reverse geocoding failed', e); return null; });
       });
     },
-
+ 
     /* Optional manual fallback: forward search for a place name (India only). */
     search: function (q) {
       var self = this;
@@ -144,7 +145,7 @@
           });
       });
     },
-
+ 
     useManual: function (item) {
       this.set({ status: 'ready', source: 'manual', coords: item.coords, place: item.place.headline ? item.place : null, geocodeFailed: !item.place.headline, error: null },
         'Location chosen manually');
@@ -154,19 +155,19 @@
         'Demo location selected (not the farmer\'s real location)');
     }
   };
-
+ 
   /* ---------- Location panel (hero) and dashboard header ---------- */
   function areaText(s) {
     if (s.place && s.place.headline) return s.place.headline;
     if (s.coords) return 'Location detected (place name unavailable)';
     return '';
   }
-
+ 
   function btn(label, action, cls) {
     return h('button', { type: 'button', 'data-action': action, class: cls || 'btn' }, label);
   }
   function linkBtn(label, action) { return btn(label, action, 'linkbtn'); }
-
+ 
   function renderPanel() {
     var s = Loc.state;
     var box = $('#locPanel');
@@ -225,7 +226,7 @@
     }
     box.replaceChildren.apply(box, kids);
   }
-
+ 
   function renderDashHead() {
     var s = Loc.state;
     $('#greeting').textContent = Lib.greeting(new Date().getHours()) + ', Farmer!';
@@ -247,7 +248,7 @@
       acts.append(btn('Use My Current Location', 'detect', 'btn btn-small btn-primary'));
     }
   }
-
+ 
   /* ---------- Weather (Open-Meteo, no API key needed) ---------- */
   var weatherCache = {};
   var Weather = {
@@ -281,11 +282,11 @@
     }
   };
   var SAMPLE_WEATHER = { temp: 31, humidity: 78, wind: 9, code: 3, rainProb: 40 };
-
+ 
   function stat(label, value) {
     return h('div', { class: 'stat' }, h('dt', { text: label }), h('dd', { text: value }));
   }
-
+ 
   function renderWeather(mode, w) {
     var box = $('#weatherBox');
     var head = h('h3', { text: 'Weather today' });
@@ -311,7 +312,7 @@
     }
     box.replaceChildren.apply(box, kids);
   }
-
+ 
   function renderRisk(mode, w) {
     var box = $('#riskBox');
     var head = h('h3', { text: 'Storage risk' });
@@ -330,7 +331,7 @@
       h('p', { class: 'advice', text: r.advice })
     );
   }
-
+ 
   var weatherReq = 0;
   function refreshWeather() {
     var s = Loc.state;
@@ -346,7 +347,7 @@
       renderWeather('demo', SAMPLE_WEATHER); renderRisk('demo', SAMPLE_WEATHER);
     });
   }
-
+ 
   /* ---------- Local support box ---------- */
   function renderSupport() {
     var s = Loc.state;
@@ -368,11 +369,11 @@
     kids.push(list);
     box.replaceChildren.apply(box, kids);
   }
-
+ 
   /* ---------- Nearby (OpenStreetMap via Overpass) ---------- */
   var Nearby = {
     kind: 'storage', radiusKm: 25, map: null, layer: null, cache: {}, reqId: 0,
-
+ 
     ensureMap: function () {
       if (this.map || !window.L) return;
       var el = $('#map');
@@ -382,7 +383,7 @@
       }).addTo(this.map);
       this.layer = L.layerGroup().addTo(this.map);
     },
-
+ 
     run: function () {
       var self = this;
       var s = Loc.state;
@@ -397,24 +398,18 @@
       var c = s.coords;
       var key = [this.kind, this.radiusKm, c.lat.toFixed(2), c.lon.toFixed(2)].join('|');
       var id = ++this.reqId;
-      status.textContent = 'Searching OpenStreetMap...';
+      status.replaceChildren('Searching OpenStreetMap. This can take up to 30 seconds. Or ', self.mapsLink(c), '.');
       list.replaceChildren();
+      if (this.layer) this.layer.clearLayers();
+      /* Show where the user is on the map straight away, even before results arrive. */
+      this.ensureMap();
+      if (this.map) this.map.setView([c.lat, c.lon], 11);
+      this.showYou(c);
       var p;
       if (this.cache[key]) p = Promise.resolve(this.cache[key]);
       else {
-        Loc.counters.overpass++;
-        var ctrl = new AbortController();
-        var timer = setTimeout(function () { ctrl.abort(); }, 28000);
         var q = Lib.buildOverpassQuery(this.kind, c.lat, c.lon, this.radiusKm * 1000);
-        p = fetch('https://overpass-api.de/api/interpreter', {
-          method: 'POST', signal: ctrl.signal,
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: 'data=' + encodeURIComponent(q)
-        }).then(function (res) {
-          clearTimeout(timer);
-          if (!res.ok) throw new Error('HTTP ' + res.status);
-          return res.json();
-        }).then(function (j) {
+        p = this.fetchOverpass(q).then(function (j) {
           var items = Lib.parseOverpass(j, c.lat, c.lon, self.kind);
           self.cache[key] = items;
           return items;
@@ -427,28 +422,67 @@
         if (id !== self.reqId) return;
         console.warn('Nearby search failed', e);
         status.replaceChildren(
-          'Nearby places could not be loaded right now. ',
+          'Nearby places could not be loaded right now. The free map data servers are sometimes busy. ',
           h('button', { type: 'button', class: 'linkbtn', 'data-action': 'nearby-retry' }, 'Try again'),
-          '. ', self.mapsLink(c)
+          ' or ', self.mapsLink(c), '.'
         );
       });
     },
-
+ 
+    /* Free public Overpass servers are often busy, so try several, failing fast on each. */
+    ENDPOINTS: [
+      'https://overpass-api.de/api/interpreter',
+      'https://overpass.kumi.systems/api/interpreter',
+      'https://overpass.private.coffee/api/interpreter'
+    ],
+    tryEndpoint: function (url, q) {
+      var ctrl = new AbortController();
+      var timer = setTimeout(function () { ctrl.abort(); }, 14000);
+      Loc.counters.overpass++;
+      Loc.note('Nearby search: asking ' + url.split('/')[2]);
+      renderLog();
+      return fetch(url, {
+        method: 'POST', signal: ctrl.signal,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'data=' + encodeURIComponent(q)
+      }).then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      }).then(function (j) {
+        clearTimeout(timer);
+        /* Overpass reports some failures with HTTP 200 and a remark. Treat an empty remark result as a failure. */
+        if (j && j.remark && !(j.elements && j.elements.length)) throw new Error('Server remark: ' + j.remark);
+        return j;
+      }, function (err) { clearTimeout(timer); throw err; });
+    },
+    fetchOverpass: function (q) {
+      var self = this;
+      return self.ENDPOINTS.reduce(function (chain, url) {
+        return chain.catch(function (err) {
+          if (err && err.message !== 'start') { Loc.note('Nearby search failed: ' + err.message); renderLog(); }
+          return self.tryEndpoint(url, q);
+        });
+      }, Promise.reject(new Error('start')));
+    },
+ 
+    showYou: function (c) {
+      if (!this.map || !this.layer) return;
+      var you = L.circleMarker([c.lat, c.lon], { radius: 7, color: '#1f3d2b', weight: 2, fillColor: '#c99a2e', fillOpacity: 1 });
+      you.bindTooltip(Loc.state.source === 'demo' ? 'Demo location' : 'Your location');
+      you.addTo(this.layer);
+    },
+ 
     mapsLink: function (c) {
       var term = this.kind === 'support' ? 'agriculture+office' : 'grain+warehouse';
       return h('a', { href: 'https://www.google.com/maps/search/' + term + '/@' + c.lat.toFixed(3) + ',' + c.lon.toFixed(3) + ',12z', target: '_blank', rel: 'noopener' }, 'Search on Google Maps');
     },
-
+ 
     render: function (items, c) {
       var status = $('#nearbyStatus');
       var list = $('#nearbyList');
       this.ensureMap();
       if (this.layer) this.layer.clearLayers();
-      if (this.map) {
-        var you = L.circleMarker([c.lat, c.lon], { radius: 7, color: '#1f3d2b', weight: 2, fillColor: '#c99a2e', fillOpacity: 1 });
-        you.bindTooltip(Loc.state.source === 'demo' ? 'Demo location' : 'Your location');
-        you.addTo(this.layer);
-      }
+      this.showYou(c);
       if (!items.length) {
         status.replaceChildren(
           'No listings found within ' + this.radiusKm + ' km on OpenStreetMap. Coverage is incomplete in many rural areas, so this does not mean none exist. ',
@@ -476,7 +510,7 @@
       if (this.map) this.map.fitBounds(bounds, { padding: [24, 24], maxZoom: 13 });
     }
   };
-
+ 
   /* Leaflet tooltips accept HTML strings; pass a text node instead to avoid injecting OSM names as HTML. */
   (function patchTooltip() {
     if (!window.L) return;
@@ -486,7 +520,7 @@
       return orig.call(this, content, opts);
     };
   })();
-
+ 
   /* ---------- Inventory (localStorage, no location data) ---------- */
   var INV_KEY = 'anaj.inventory.v1';
   function loadInv() { try { return JSON.parse(localStorage.getItem(INV_KEY)) || []; } catch (e) { return []; } }
@@ -512,7 +546,7 @@
       ? 'Total in store: ' + keys.map(function (k) { return totals[k] + ' quintal ' + k; }).join(', ')
       : '';
   }
-
+ 
   /* ---------- Monitor (simulated) ---------- */
   var BINS = [
     { name: 'Store A, wheat', temp: 27, humidity: 58, moisture: 10.8 },
@@ -585,7 +619,7 @@
     var ul = $('#logList');
     ul.replaceChildren.apply(ul, Loc.log.map(function (e) { return h('li', null, h('time', { text: e.t }), ' ' + e.msg); }));
   }
-
+ 
   /* ---------- Manual location dialog ---------- */
   function setupManual() {
     var dlg = $('#manualDialog');
@@ -618,7 +652,7 @@
       input.focus();
     };
   }
-
+ 
   /* ---------- Wiring ---------- */
   function renderAll() {
     renderPanel();
@@ -626,7 +660,7 @@
     renderSupport();
     renderLog();
   }
-
+ 
   var openManual = function () {};
   var lastCoordKey = '';
   Loc.subscribe(function (s) {
@@ -639,7 +673,7 @@
       renderLog();
     }
   });
-
+ 
   document.addEventListener('click', function (e) {
     var t = e.target.closest('[data-action]');
     if (!t) return;
@@ -656,7 +690,7 @@
       var items = loadInv(); items.splice(parseInt(t.getAttribute('data-idx'), 10), 1); saveInv(items); renderInventory();
     }
   });
-
+ 
   function init() {
     openManual = setupManual();
     $$('.seg button').forEach(function (b) {
@@ -667,7 +701,7 @@
       });
     });
     $('#radius').addEventListener('change', function (e) { Nearby.radiusKm = parseInt(e.target.value, 10); Nearby.run(); });
-
+ 
     $('#invForm').addEventListener('submit', function (e) {
       e.preventDefault();
       var f = e.target;
@@ -681,17 +715,17 @@
       f.reset();
       renderInventory();
     });
-
+ 
     $('#monStep').addEventListener('click', function () { stepMonitor(); renderMonitor(); });
     $('#monReset').addEventListener('click', function () { resetMonitor(); renderMonitor(); });
-
+ 
     resetMonitor(); renderMonitor();
     renderInventory();
     renderAll();
     renderWeather('none'); renderRisk('none');
     Nearby.run();
     if (window.L) Nearby.ensureMap();
-
+ 
     /* If the user already granted permission earlier, fetch silently. Never prompts. */
     if (navigator.permissions && navigator.permissions.query) {
       navigator.permissions.query({ name: 'geolocation' }).then(function (p) {
@@ -700,7 +734,7 @@
       }).catch(function () { /* not supported, wait for the button */ });
     }
   }
-
+ 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 })();
