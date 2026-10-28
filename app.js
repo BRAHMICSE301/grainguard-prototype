@@ -1,11 +1,16 @@
-
-/* Anaj: location service, weather, nearby search, inventory and monitor.
-   Depends on lib.js (window.AnajLib). Classic script so it also works without a module server. */
+/* Anaj: location service, weather, nearby search, inventory, monitor and language switch.
+   Depends on i18n.js (window.AnajI18n) and lib.js (window.AnajLib).
+   Classic script so it also works without a module server. */
 (function () {
   'use strict';
- 
+
   var Lib = window.AnajLib;
- 
+  var I = window.AnajI18n;
+
+  /* Text in the current language, and always in English (used for the technical log). */
+  function T(key, params) { return I.t(key, params); }
+  function TE(key, params) { return I.tIn('en', key, params); }
+
   /* ---------- Small DOM helpers ---------- */
   function $(sel, root) { return (root || document).querySelector(sel); }
   function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
@@ -38,11 +43,17 @@
     return s;
   }
   var PIN = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg>';
- 
+
   /* ---------- Location service ---------- */
-  var DEMO_PLACE = { locality: '', city: 'Gurugram', district: 'Gurugram', state: 'Haryana', postcode: '', headline: 'Gurugram, Haryana' };
+  var DEMO_PLACES = {
+    en: { locality: '', city: 'Gurugram', district: 'Gurugram', state: 'Haryana', postcode: '', headline: 'Gurugram, Haryana' },
+    hi: { locality: '', city: 'गुरुग्राम', district: 'गुरुग्राम', state: 'हरियाणा', postcode: '', headline: 'गुरुग्राम, हरियाणा' }
+  };
+  function demoPlace() { return DEMO_PLACES[I.getLang()] || DEMO_PLACES.en; }
   var DEMO_COORDS = { lat: 28.4595, lon: 77.0266, accuracy: null };
- 
+
+  function geoLangParam() { return I.getLang() === 'hi' ? 'hi,en' : 'en'; }
+
   var Loc = {
     state: { status: 'idle', source: null, coords: null, place: null, geocodeFailed: false, error: null },
     listeners: [],
@@ -50,7 +61,7 @@
     counters: { geocode: 0, weather: 0, overpass: 0 },
     busy: false,
     lastGeocodeAt: 0,
- 
+
     subscribe: function (fn) { this.listeners.push(fn); },
     note: function (msg) {
       var d = new Date();
@@ -62,7 +73,7 @@
       if (why) this.note(why);
       this.listeners.forEach(function (fn) { try { fn(Loc.state); } catch (e) { console.error(e); } });
     },
- 
+
     /* Ask the browser for the position. Only called from a user action, or silently when
        permission is already granted (the Permissions API says so), so no surprise prompts. */
     detect: function () {
@@ -96,12 +107,13 @@
         }, { enableHighAccuracy: false, timeout: 12000, maximumAge: 10 * 60 * 1000 });
       });
     },
- 
+
     /* Reverse geocoding with Nominatim. Rate limited to one request per 1.1 s, cached per
        session at about 1 km precision so we never store precise coordinates. */
     reverse: function (lat, lon) {
       var self = this;
-      var key = 'anaj.geo.' + lat.toFixed(2) + ',' + lon.toFixed(2);
+      var lang = I.getLang();
+      var key = 'anaj.geo.' + lang + '.' + lat.toFixed(2) + ',' + lon.toFixed(2);
       try {
         var cached = sessionStorage.getItem(key);
         if (cached) { self.note('Place name served from session cache'); return Promise.resolve(JSON.parse(cached)); }
@@ -112,7 +124,7 @@
         self.counters.geocode++;
         var ctrl = new AbortController();
         var timer = setTimeout(function () { ctrl.abort(); }, 10000);
-        var url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=14&accept-language=en' +
+        var url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2&addressdetails=1&zoom=14&accept-language=' + geoLangParam() +
           '&lat=' + encodeURIComponent(lat.toFixed(5)) + '&lon=' + encodeURIComponent(lon.toFixed(5));
         return fetch(url, { signal: ctrl.signal, headers: { 'Accept': 'application/json' } })
           .then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
@@ -126,7 +138,19 @@
           .catch(function (e) { clearTimeout(timer); console.warn('Reverse geocoding failed', e); return null; });
       });
     },
- 
+
+    /* After a language change, show the area name in the new language. */
+    relocalize: function () {
+      var self = this;
+      var s = self.state;
+      if (s.status !== 'ready' || !s.coords) return Promise.resolve();
+      if (s.source === 'demo') { self.set({ place: demoPlace() }); return Promise.resolve(); }
+      var coords = s.coords;
+      return self.reverse(coords.lat, coords.lon).then(function (place) {
+        if (place && self.state.coords === coords) self.set({ place: place, geocodeFailed: false }, 'Place name updated for the new language');
+      });
+    },
+
     /* Optional manual fallback: forward search for a place name (India only). */
     search: function (q) {
       var self = this;
@@ -134,7 +158,8 @@
       return new Promise(function (r) { setTimeout(r, wait); }).then(function () {
         self.lastGeocodeAt = Date.now();
         self.counters.geocode++;
-        var url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&countrycodes=in&accept-language=en&q=' + encodeURIComponent(q);
+        var url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&countrycodes=in&accept-language=' +
+          geoLangParam() + '&q=' + encodeURIComponent(q);
         return fetch(url, { headers: { 'Accept': 'application/json' } })
           .then(function (res) { if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
           .then(function (arr) {
@@ -145,110 +170,115 @@
           });
       });
     },
- 
+
     useManual: function (item) {
       this.set({ status: 'ready', source: 'manual', coords: item.coords, place: item.place.headline ? item.place : null, geocodeFailed: !item.place.headline, error: null },
         'Location chosen manually');
     },
     useDemo: function () {
-      this.set({ status: 'ready', source: 'demo', coords: DEMO_COORDS, place: DEMO_PLACE, geocodeFailed: false, error: null },
+      this.set({ status: 'ready', source: 'demo', coords: DEMO_COORDS, place: demoPlace(), geocodeFailed: false, error: null },
         'Demo location selected (not the farmer\'s real location)');
     }
   };
- 
+
   /* ---------- Location panel (hero) and dashboard header ---------- */
   function areaText(s) {
     if (s.place && s.place.headline) return s.place.headline;
-    if (s.coords) return 'Location detected (place name unavailable)';
+    if (s.coords) return T('area_nameless');
     return '';
   }
- 
+
   function btn(label, action, cls) {
     return h('button', { type: 'button', 'data-action': action, class: cls || 'btn' }, label);
   }
   function linkBtn(label, action) { return btn(label, action, 'linkbtn'); }
- 
+
   function renderPanel() {
     var s = Loc.state;
     var box = $('#locPanel');
     var kids;
     if (s.status === 'idle') {
       kids = [
-        h('p', { class: 'loc-title', text: 'Find storage facilities near you' }),
-        h('p', { class: 'loc-help', text: 'We ask for your location once, only to show nearby stores and local weather. You do not need to type anything.' }),
-        h('div', { class: 'loc-row' }, btn('Use My Current Location', 'detect', 'btn btn-primary')),
-        h('p', { class: 'loc-alt' }, linkBtn('Look at the demo location', 'demo'), ' or ', linkBtn('choose a place yourself', 'manual'))
+        h('p', { class: 'loc-title', text: T('loc_find_title') }),
+        h('p', { class: 'loc-help', text: T('loc_idle_help') }),
+        h('div', { class: 'loc-row' }, btn(T('btn_detect'), 'detect', 'btn btn-primary')),
+        h('p', { class: 'loc-alt' }, linkBtn(T('link_demo'), 'demo'), T('or'), linkBtn(T('link_manual'), 'manual'))
       ];
     } else if (s.status === 'loading') {
       kids = [
-        h('p', { class: 'loc-title', text: 'Finding your location' }),
-        h('p', { class: 'loc-help' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Please allow location access when your browser asks.')
+        h('p', { class: 'loc-title', text: T('loc_loading_title') }),
+        h('p', { class: 'loc-help' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), T('loc_loading_help'))
       ];
     } else if (s.status === 'resolving') {
       kids = [
-        h('p', { class: 'loc-title', text: 'Location received' }),
-        h('p', { class: 'loc-help' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Looking up the name of your area.')
+        h('p', { class: 'loc-title', text: T('loc_resolving_title') }),
+        h('p', { class: 'loc-help' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), T('loc_resolving_help'))
       ];
     } else if (s.status === 'ready') {
       var sub, badge = null;
-      if (s.source === 'device') sub = s.place ? 'Location detected automatically' : 'Location detected. We could not look up the place name, but nearby search still works.';
-      else if (s.source === 'manual') sub = 'Location chosen by you';
-      else { sub = 'This is a sample location for demonstration. It is not your actual location.'; badge = h('span', { class: 'tag tag-demo', text: 'Demo' }); }
-      var headline = s.source === 'demo' ? 'Demo Location: ' + areaText(s) : areaText(s);
+      if (s.source === 'device') sub = s.place ? T('loc_sub_device') : T('loc_sub_device_noname');
+      else if (s.source === 'manual') sub = T('loc_sub_manual');
+      else { sub = T('loc_sub_demo'); badge = h('span', { class: 'tag tag-demo', text: T('tag_demo') }); }
+      var headline = s.source === 'demo' ? T('demo_prefix') + areaText(s) : areaText(s);
       kids = [
-        h('p', { class: 'loc-title' }, 'Your location'),
+        h('p', { class: 'loc-title' }, T('loc_ready_title')),
         h('p', { class: 'loc-now' }, icon(PIN), h('span', { text: headline }), badge),
         h('p', { class: 'loc-help', text: sub }),
         h('p', { class: 'loc-alt' },
-          s.source === 'demo' ? linkBtn('Use my current location', 'detect') : linkBtn('Refresh location', 'refresh'),
-          ' · ', linkBtn('Change', 'manual'))
+          s.source === 'demo' ? linkBtn(T('link_use_current'), 'detect') : linkBtn(T('link_refresh'), 'refresh'),
+          ' · ', linkBtn(T('link_change'), 'manual'))
       ];
       if (s.place && s.source === 'device' && (s.place.locality || s.place.district || s.place.postcode)) {
-        var bits = [s.place.locality, s.place.district && s.place.district + ' district', s.place.postcode && 'PIN ' + s.place.postcode].filter(Boolean);
+        var bits = [
+          s.place.locality,
+          s.place.district && T('district_fmt', { d: s.place.district }),
+          s.place.postcode && T('pin_fmt', { p: s.place.postcode })
+        ].filter(Boolean);
         kids.splice(3, 0, h('p', { class: 'loc-detail', text: bits.join(' · ') }));
       }
     } else if (s.status === 'denied') {
       kids = [
-        h('p', { class: 'loc-title', text: 'Location access is turned off' }),
-        h('p', { class: 'loc-help', text: 'We need your location to show stores near you. Allow location for this site in your browser settings, then try again. The rest of the site works without it.' }),
-        h('div', { class: 'loc-row' }, btn('Try again', 'detect', 'btn btn-primary')),
-        h('p', { class: 'loc-alt' }, 'Optional: ', linkBtn('choose a place yourself', 'manual'), ' or ', linkBtn('look at the demo location', 'demo'))
+        h('p', { class: 'loc-title', text: T('loc_denied_title') }),
+        h('p', { class: 'loc-help', text: T('loc_denied_help') }),
+        h('div', { class: 'loc-row' }, btn(T('btn_try_again'), 'detect', 'btn btn-primary')),
+        h('p', { class: 'loc-alt' }, T('optional_prefix'), linkBtn(T('link_manual'), 'manual'), T('or'), linkBtn(T('link_demo'), 'demo'))
       ];
     } else {
-      var msg = 'Your location could not be detected. You can try again or select your location manually.';
-      if (s.error === 'insecure') msg = 'Location only works on a secure (HTTPS) page. Open the site through its https address and try again.';
-      if (s.error === 'unsupported') msg = 'This browser does not support location. You can select your location manually.';
+      var msg = T('loc_err_default');
+      if (s.error === 'insecure') msg = T('loc_err_insecure');
+      if (s.error === 'unsupported') msg = T('loc_err_unsupported');
       kids = [
-        h('p', { class: 'loc-title', text: 'Location not available' }),
+        h('p', { class: 'loc-title', text: T('loc_err_title') }),
         h('p', { class: 'loc-help', text: msg }),
-        h('div', { class: 'loc-row' }, btn('Try again', 'detect', 'btn btn-primary'), btn('Select manually', 'manual', 'btn')),
+        h('div', { class: 'loc-row' }, btn(T('btn_try_again'), 'detect', 'btn btn-primary'), btn(T('btn_select_manual'), 'manual', 'btn'))
       ];
     }
     box.replaceChildren.apply(box, kids);
   }
- 
+
   function renderDashHead() {
     var s = Loc.state;
-    $('#greeting').textContent = Lib.greeting(new Date().getHours()) + ', Farmer!';
+    $('#greeting').textContent = T(Lib.greetingKey(new Date().getHours()));
     var line = $('#areaLine');
+    line.removeAttribute('data-i18n');
     if (s.status === 'ready') {
       line.textContent = s.source === 'demo'
-        ? 'Demo location: ' + areaText(s) + ' (sample, not your actual location)'
-        : 'Your area: ' + areaText(s);
+        ? T('area_demo', { a: areaText(s) })
+        : T('area_yours', { a: areaText(s) });
     } else if (s.status === 'loading' || s.status === 'resolving') {
-      line.textContent = 'Finding your area...';
+      line.textContent = T('area_finding');
     } else {
-      line.textContent = 'Your area is not set. Use the location button above to see local information.';
+      line.textContent = T('area_unset');
     }
     var acts = $('#dashActions');
     acts.replaceChildren();
     if (s.status === 'ready') {
-      acts.append(btn('Refresh location', s.source === 'demo' ? 'detect' : 'refresh', 'btn btn-small'), btn('Change', 'manual', 'btn btn-small'));
+      acts.append(btn(T('link_refresh'), s.source === 'demo' ? 'detect' : 'refresh', 'btn btn-small'), btn(T('link_change'), 'manual', 'btn btn-small'));
     } else if (s.status === 'idle' || s.status === 'denied' || s.status === 'error') {
-      acts.append(btn('Use My Current Location', 'detect', 'btn btn-small btn-primary'));
+      acts.append(btn(T('btn_detect'), 'detect', 'btn btn-small btn-primary'));
     }
   }
- 
+
   /* ---------- Weather (Open-Meteo, no API key needed) ---------- */
   var weatherCache = {};
   var Weather = {
@@ -282,98 +312,110 @@
     }
   };
   var SAMPLE_WEATHER = { temp: 31, humidity: 78, wind: 9, code: 3, rainProb: 40 };
- 
+
   function stat(label, value) {
     return h('div', { class: 'stat' }, h('dt', { text: label }), h('dd', { text: value }));
   }
- 
+
   function renderWeather(mode, w) {
     var box = $('#weatherBox');
-    var head = h('h3', { text: 'Weather today' });
+    var head = h('h3', { text: T('wx_title') });
     var kids;
     if (mode === 'none') {
-      kids = [head, h('p', { class: 'muted', text: 'Set your location to see the weather for your area.' })];
+      kids = [head, h('p', { class: 'muted', text: T('wx_none') })];
     } else if (mode === 'loading') {
-      kids = [head, h('p', { class: 'muted' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Loading weather...')];
+      kids = [head, h('p', { class: 'muted' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), T('wx_loading'))];
     } else {
       var live = mode === 'live';
       var src = live
-        ? (Loc.state.source === 'demo' ? 'Live data from Open-Meteo, for the demo location' : 'Live data from Open-Meteo')
-        : 'Demo weather. Sample values, not live. Live weather could not be loaded.';
+        ? (Loc.state.source === 'demo' ? T('wx_src_live_demo') : T('wx_src_live'))
+        : T('wx_src_demo');
       kids = [
         head,
         h('p', { class: live ? 'src' : 'src src-demo', text: src }),
-        h('p', { class: 'big-num' }, Math.round(w.temp) + ' °C', h('span', { text: Lib.weatherLabel(w.code) })),
+        h('p', { class: 'big-num' }, Math.round(w.temp) + ' °C', h('span', { text: T(Lib.weatherKey(w.code)) })),
         h('dl', { class: 'stats' },
-          stat('Humidity', Math.round(w.humidity) + '%'),
-          stat('Chance of rain', w.rainProb == null ? 'n/a' : Math.round(w.rainProb) + '%'),
-          stat('Wind', Math.round(w.wind) + ' km/h'))
+          stat(T('wx_humidity'), Math.round(w.humidity) + '%'),
+          stat(T('wx_rain'), w.rainProb == null ? T('na') : Math.round(w.rainProb) + '%'),
+          stat(T('wx_wind'), Math.round(w.wind) + ' ' + T('kmh')))
       ];
     }
     box.replaceChildren.apply(box, kids);
   }
- 
+
   function renderRisk(mode, w) {
     var box = $('#riskBox');
-    var head = h('h3', { text: 'Storage risk' });
+    var head = h('h3', { text: T('risk_title') });
     if (mode === 'none' || mode === 'loading') {
-      box.replaceChildren(head, h('p', { class: 'muted', text: 'Storage guidance appears here once weather for your area is available.' }));
+      box.replaceChildren(head, h('p', { class: 'muted', text: T('risk_none') }));
       return;
     }
     var r = Lib.storageRisk(w);
-    var label = { low: 'Low risk', medium: 'Medium risk', high: 'High risk' }[r.level];
-    var items = r.reasons.map(function (t) { return h('li', { text: t }); });
+    var items = r.reasons.map(function (x) { return h('li', { text: T(x.key, { n: x.n }) }); });
     box.replaceChildren(
       head,
-      mode === 'demo' ? h('p', { class: 'src src-demo', text: 'Based on demo weather values' }) : h('p', { class: 'src', text: 'Based on today\'s weather. General guidance only.' }),
-      h('p', { class: 'status status-' + (r.level === 'low' ? 'ok' : r.level === 'medium' ? 'warn' : 'danger') }, h('span', { class: 'dot', 'aria-hidden': 'true' }), label),
+      mode === 'demo' ? h('p', { class: 'src src-demo', text: T('risk_src_demo') }) : h('p', { class: 'src', text: T('risk_src_live') }),
+      h('p', { class: 'status status-' + (r.level === 'low' ? 'ok' : r.level === 'medium' ? 'warn' : 'danger') }, h('span', { class: 'dot', 'aria-hidden': 'true' }), T('risk_' + r.level)),
       h('ul', { class: 'plain' }, items),
-      h('p', { class: 'advice', text: r.advice })
+      h('p', { class: 'advice', text: T(r.adviceKey) })
     );
   }
- 
+
+  /* Remember what is on screen so a language switch can redraw without asking the network again. */
+  var lastWx = { mode: 'none', w: null };
+  function showWeather(mode, w) {
+    lastWx = { mode: mode, w: w };
+    renderWeather(mode, w);
+    renderRisk(mode, w);
+  }
+  function redrawWeather() { renderWeather(lastWx.mode, lastWx.w); renderRisk(lastWx.mode, lastWx.w); }
+
   var weatherReq = 0;
   function refreshWeather() {
     var s = Loc.state;
     var id = ++weatherReq;
-    if (s.status !== 'ready' || !s.coords) { renderWeather('none'); renderRisk('none'); return; }
-    renderWeather('loading'); renderRisk('loading');
+    if (s.status !== 'ready' || !s.coords) { showWeather('none'); return; }
+    showWeather('loading');
     Weather.fetch(s.coords.lat, s.coords.lon).then(function (w) {
       if (id !== weatherReq) return;
-      renderWeather('live', w); renderRisk('live', w);
+      showWeather('live', w);
     }).catch(function (e) {
       if (id !== weatherReq) return;
       console.warn('Weather failed', e);
-      renderWeather('demo', SAMPLE_WEATHER); renderRisk('demo', SAMPLE_WEATHER);
+      showWeather('demo', SAMPLE_WEATHER);
     });
   }
- 
+
   /* ---------- Local support box ---------- */
   function renderSupport() {
     var s = Loc.state;
     var box = $('#supportBox');
     var list = h('ul', { class: 'plain links' },
-      h('li', null, h('a', { href: 'https://enam.gov.in', target: '_blank', rel: 'noopener' }, 'eNAM'), ' (national agriculture market)'),
-      h('li', null, h('a', { href: 'https://soilhealth.dac.gov.in', target: '_blank', rel: 'noopener' }, 'Soil Health Card portal')),
-      h('li', null, h('a', { href: 'https://kvk.icar.gov.in', target: '_blank', rel: 'noopener' }, 'Krishi Vigyan Kendra locator')),
-      h('li', null, 'Kisan Call Centre: ', h('strong', { text: '1800-180-1551' }), ' (toll free)')
+      h('li', null, h('a', { href: 'https://enam.gov.in', target: '_blank', rel: 'noopener' }, 'eNAM'), T('sup_enam_sfx')),
+      h('li', null, h('a', { href: 'https://soilhealth.dac.gov.in', target: '_blank', rel: 'noopener' }, T('sup_soil'))),
+      h('li', null, h('a', { href: 'https://kvk.icar.gov.in', target: '_blank', rel: 'noopener' }, T('sup_kvk'))),
+      h('li', null, T('sup_kcc'), h('strong', { text: '1800-180-1551' }), T('sup_kcc_sfx'))
     );
-    var kids = [h('h3', { text: 'Local agricultural support' })];
+    var kids = [h('h3', { text: T('sup_title') })];
     if (s.status === 'ready' && s.place && s.place.district) {
       var q = encodeURIComponent('Krishi Vigyan Kendra ' + s.place.district + ' ' + (s.place.state || ''));
-      kids.push(h('p', { class: 'src', text: 'For ' + s.place.district + ' district' }));
-      kids.push(h('p', null, h('a', { class: 'btn btn-small', href: 'https://www.google.com/search?q=' + q, target: '_blank', rel: 'noopener' }, 'Find your district KVK')));
+      kids.push(h('p', { class: 'src', text: T('sup_for_district', { d: s.place.district }) }));
+      kids.push(h('p', null, h('a', { class: 'btn btn-small', href: 'https://www.google.com/search?q=' + q, target: '_blank', rel: 'noopener' }, T('btn_find_kvk'))));
     } else {
-      kids.push(h('p', { class: 'muted', text: 'Set your location to find support for your district. National services are listed below.' }));
+      kids.push(h('p', { class: 'muted', text: T('sup_none') }));
     }
     kids.push(list);
     box.replaceChildren.apply(box, kids);
   }
- 
-  /* ---------- Nearby (OpenStreetMap via Overpass) ---------- */
+
+  /* ---------- Nearby (OpenStreetMap) ---------- */
+  function placeName(it) {
+    return it.name || (T(it.kindKey || 'k_place') + T('unnamed'));
+  }
+
   var Nearby = {
-    kind: 'storage', radiusKm: 25, map: null, layer: null, cache: {}, reqId: 0,
- 
+    kind: 'storage', radiusKm: 25, map: null, layer: null, cache: {}, reqId: 0, lastError: '',
+
     ensureMap: function () {
       if (this.map || !window.L) return;
       var el = $('#map');
@@ -383,14 +425,15 @@
       }).addTo(this.map);
       this.layer = L.layerGroup().addTo(this.map);
     },
- 
+
     run: function () {
       var self = this;
       var s = Loc.state;
       var status = $('#nearbyStatus');
       var list = $('#nearbyList');
+      status.removeAttribute('data-i18n');
       if (s.status !== 'ready' || !s.coords) {
-        status.textContent = 'Set your location to see nearby places.';
+        status.textContent = T('nb_prompt');
         list.replaceChildren();
         if (this.layer) this.layer.clearLayers();
         return;
@@ -398,7 +441,7 @@
       var c = s.coords;
       var key = [this.kind, this.radiusKm, c.lat.toFixed(2), c.lon.toFixed(2)].join('|');
       var id = ++this.reqId;
-      status.replaceChildren('Searching OpenStreetMap. This can take up to 30 seconds. Or ', self.mapsLink(c), '.');
+      status.replaceChildren(T('nb_searching'), self.mapsLink(c), '.');
       list.replaceChildren();
       if (this.layer) this.layer.clearLayers();
       /* Show where the user is on the map straight away, even before results arrive. */
@@ -409,8 +452,20 @@
       if (this.cache[key]) p = Promise.resolve(this.cache[key]);
       else {
         var q = Lib.buildOverpassQuery(this.kind, c.lat, c.lon, this.radiusKm * 1000);
+        self.lastError = '';
         p = this.fetchOverpass(q).then(function (j) {
-          var items = Lib.parseOverpass(j, c.lat, c.lon, self.kind);
+          return Lib.parseOverpass(j, c.lat, c.lon, self.kind);
+        }).catch(function (err) {
+          /* Main servers failed. Try the OpenStreetMap place search, which is the same service that found the area name. */
+          self.lastError = self.reasonText(err, T);
+          Loc.note('Switching to the OpenStreetMap place search');
+          renderLog();
+          if (id === self.reqId) status.replaceChildren(T('nb_trying'), self.mapsLink(c), '.');
+          return self.nominatimFallback(c).catch(function (err2) {
+            self.lastError = self.lastError + ' / ' + self.reasonText(err2, T);
+            throw err2;
+          });
+        }).then(function (items) {
           self.cache[key] = items;
           return items;
         });
@@ -422,13 +477,14 @@
         if (id !== self.reqId) return;
         console.warn('Nearby search failed', e);
         status.replaceChildren(
-          'Nearby places could not be loaded right now. The free map data servers are sometimes busy. ',
-          h('button', { type: 'button', class: 'linkbtn', 'data-action': 'nearby-retry' }, 'Try again'),
-          ' or ', self.mapsLink(c), '.'
+          T('nb_fail'),
+          h('button', { type: 'button', class: 'linkbtn', 'data-action': 'nearby-retry' }, T('btn_try_again')),
+          T('or'), self.mapsLink(c), '.',
+          h('span', { class: 'err-detail', text: T('nb_reason', { r: self.lastError || T('re_unknown') }) })
         );
       });
     },
- 
+
     /* Free public Overpass servers are often busy, so try several, failing fast on each. */
     ENDPOINTS: [
       'https://overpass-api.de/api/interpreter',
@@ -437,7 +493,7 @@
     ],
     tryEndpoint: function (url, q) {
       var ctrl = new AbortController();
-      var timer = setTimeout(function () { ctrl.abort(); }, 14000);
+      var timer = setTimeout(function () { ctrl.abort(); }, 18000);
       Loc.counters.overpass++;
       Loc.note('Nearby search: asking ' + url.split('/')[2]);
       renderLog();
@@ -459,24 +515,63 @@
       var self = this;
       return self.ENDPOINTS.reduce(function (chain, url) {
         return chain.catch(function (err) {
-          if (err && err.message !== 'start') { Loc.note('Nearby search failed: ' + err.message); renderLog(); }
+          if (err && err.message !== 'start') { Loc.note('Nearby search failed: ' + self.reasonText(err, TE)); renderLog(); }
           return self.tryEndpoint(url, q);
         });
       }, Promise.reject(new Error('start')));
     },
- 
+
+    /* Plain-language reason for a failed request. tr is T (page language) or TE (English, for the log). */
+    reasonText: function (e, tr) {
+      tr = tr || T;
+      var m = (e && e.message) || String(e);
+      if (e && e.name === 'AbortError') return tr('re_timeout');
+      if (/HTTP 429/.test(m)) return tr('re_429');
+      if (/HTTP 5\d\d/.test(m)) return tr('re_5xx', { m: m });
+      if (/HTTP 4\d\d/.test(m)) return tr('re_4xx', { m: m });
+      if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return tr('re_conn');
+      return m;
+    },
+
+    nominatimFallback: function (c) {
+      var self = this;
+      var terms = this.kind === 'support' ? ['agriculture', 'fertilizer'] : ['warehouse', 'godown'];
+      var vb = Lib.nominatimViewbox(c.lat, c.lon, this.radiusKm);
+      var all = [];
+      return terms.reduce(function (chain, term) {
+        return chain.then(function () {
+          var wait = Math.max(0, 1100 - (Date.now() - Loc.lastGeocodeAt));
+          return new Promise(function (r) { setTimeout(r, wait); });
+        }).then(function () {
+          Loc.lastGeocodeAt = Date.now();
+          Loc.counters.geocode++;
+          var ctrl = new AbortController();
+          var timer = setTimeout(function () { ctrl.abort(); }, 12000);
+          var url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=30&accept-language=' + geoLangParam() +
+            '&bounded=1&countrycodes=in&viewbox=' + vb + '&q=' + encodeURIComponent(term);
+          return fetch(url, { signal: ctrl.signal, headers: { 'Accept': 'application/json' } }).then(function (res) {
+            clearTimeout(timer);
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            return res.json();
+          }, function (err) { clearTimeout(timer); throw err; });
+        }).then(function (arr) { all = all.concat(arr); });
+      }, Promise.resolve()).then(function () {
+        return Lib.parseNominatimPlaces(all, c.lat, c.lon, self.radiusKm);
+      });
+    },
+
     showYou: function (c) {
       if (!this.map || !this.layer) return;
       var you = L.circleMarker([c.lat, c.lon], { radius: 7, color: '#1f3d2b', weight: 2, fillColor: '#c99a2e', fillOpacity: 1 });
-      you.bindTooltip(Loc.state.source === 'demo' ? 'Demo location' : 'Your location');
+      you.bindTooltip(Loc.state.source === 'demo' ? T('tip_demo') : T('tip_you'));
       you.addTo(this.layer);
     },
- 
+
     mapsLink: function (c) {
       var term = this.kind === 'support' ? 'agriculture+office' : 'grain+warehouse';
-      return h('a', { href: 'https://www.google.com/maps/search/' + term + '/@' + c.lat.toFixed(3) + ',' + c.lon.toFixed(3) + ',12z', target: '_blank', rel: 'noopener' }, 'Search on Google Maps');
+      return h('a', { href: 'https://www.google.com/maps/search/' + term + '/@' + c.lat.toFixed(3) + ',' + c.lon.toFixed(3) + ',12z', target: '_blank', rel: 'noopener' }, T('gmaps_link'));
     },
- 
+
     render: function (items, c) {
       var status = $('#nearbyStatus');
       var list = $('#nearbyList');
@@ -484,33 +579,31 @@
       if (this.layer) this.layer.clearLayers();
       this.showYou(c);
       if (!items.length) {
-        status.replaceChildren(
-          'No listings found within ' + this.radiusKm + ' km on OpenStreetMap. Coverage is incomplete in many rural areas, so this does not mean none exist. ',
-          this.mapsLink(c)
-        );
+        status.replaceChildren(T('nb_none', { r: this.radiusKm }), this.mapsLink(c), '.');
         list.replaceChildren();
         if (this.map) this.map.setView([c.lat, c.lon], 10);
         return;
       }
-      status.replaceChildren(items.length + ' places found within ' + this.radiusKm + ' km. Listings come from OpenStreetMap contributors and may be incomplete or out of date. ', this.mapsLink(c));
+      status.replaceChildren(T('nb_found', { n: items.length, r: this.radiusKm }), this.mapsLink(c), '.');
       var bounds = [[c.lat, c.lon]];
       var rows = items.map(function (it) {
+        var name = placeName(it);
         if (Nearby.map) {
           var m = L.marker([it.lat, it.lon]);
-          m.bindTooltip(it.name); /* Leaflet escapes tooltip text only when given a DOM node */
+          m.bindTooltip(name);
           m.addTo(Nearby.layer);
           bounds.push([it.lat, it.lon]);
         }
         return h('li', null,
-          h('span', { class: 'place-name', text: it.name }),
-          h('span', { class: 'place-dist', text: it.distanceKm.toFixed(1) + ' km' }),
+          h('span', { class: 'place-name', text: name }),
+          h('span', { class: 'place-dist', text: T('dist_fmt', { d: it.distanceKm.toFixed(1) }) }),
           it.operator ? h('span', { class: 'place-op', text: it.operator }) : null);
       });
       list.replaceChildren.apply(list, rows);
       if (this.map) this.map.fitBounds(bounds, { padding: [24, 24], maxZoom: 13 });
     }
   };
- 
+
   /* Leaflet tooltips accept HTML strings; pass a text node instead to avoid injecting OSM names as HTML. */
   (function patchTooltip() {
     if (!window.L) return;
@@ -520,11 +613,19 @@
       return orig.call(this, content, opts);
     };
   })();
- 
+
+  function updateRadiusLabels() {
+    $$('#radius option').forEach(function (o) { o.textContent = o.value + ' ' + T('km'); });
+  }
+
   /* ---------- Inventory (localStorage, no location data) ---------- */
   var INV_KEY = 'anaj.inventory.v1';
   function loadInv() { try { return JSON.parse(localStorage.getItem(INV_KEY)) || []; } catch (e) { return []; } }
   function saveInv(items) { try { localStorage.setItem(INV_KEY, JSON.stringify(items)); } catch (e) { /* ignore */ } }
+  function cropLabel(value) {
+    var key = 'crop_' + String(value).toLowerCase();
+    return I.has(key) ? T(key) : value;
+  }
   function renderInventory() {
     var items = loadInv();
     var body = $('#invBody');
@@ -535,24 +636,24 @@
     items.forEach(function (it, idx) {
       totals[it.crop] = (totals[it.crop] || 0) + it.qty;
       body.append(h('tr', null,
-        h('td', { text: it.crop }),
+        h('td', { text: cropLabel(it.crop) }),
         h('td', { class: 'num', text: String(it.qty) }),
         h('td', { text: it.place || '-' }),
         h('td', { text: it.date || '-' }),
-        h('td', null, h('button', { type: 'button', class: 'linkbtn', 'data-action': 'inv-remove', 'data-idx': String(idx), 'aria-label': 'Remove ' + it.crop + ' entry' }, 'Remove'))));
+        h('td', null, h('button', { type: 'button', class: 'linkbtn', 'data-action': 'inv-remove', 'data-idx': String(idx), 'aria-label': T('remove_aria', { c: cropLabel(it.crop) }) }, T('btn_remove')))));
     });
     var keys = Object.keys(totals);
     $('#invTotals').textContent = keys.length
-      ? 'Total in store: ' + keys.map(function (k) { return totals[k] + ' quintal ' + k; }).join(', ')
+      ? T('inv_total') + keys.map(function (k) { return T('inv_item', { q: totals[k], c: cropLabel(k) }); }).join(', ')
       : '';
   }
- 
+
   /* ---------- Monitor (simulated) ---------- */
   var BINS = [
-    { name: 'Store A, wheat', temp: 27, humidity: 58, moisture: 10.8 },
-    { name: 'Store B, wheat', temp: 29, humidity: 66, moisture: 11.6 },
-    { name: 'Store C, paddy', temp: 31, humidity: 73, moisture: 12.9 },
-    { name: 'Store D, wheat', temp: 33, humidity: 82, moisture: 14.2 }
+    { letter: 'A', crop: 'Wheat', temp: 27, humidity: 58, moisture: 10.8 },
+    { letter: 'B', crop: 'Wheat', temp: 29, humidity: 66, moisture: 11.6 },
+    { letter: 'C', crop: 'Paddy', temp: 31, humidity: 73, moisture: 12.9 },
+    { letter: 'D', crop: 'Wheat', temp: 33, humidity: 82, moisture: 14.2 }
   ];
   var monitor = [];
   function seeded(seed) { var s = seed; return function () { s = (s * 1664525 + 1013904223) % 4294967296; return s / 4294967296; }; }
@@ -566,7 +667,7 @@
         hist.push({ temp: cur.temp, humidity: cur.humidity, moisture: cur.moisture });
         cur = { temp: clamp(cur.temp + (rnd() - 0.5) * 1.2, 18, 42), humidity: clamp(cur.humidity + (rnd() - 0.5) * 3, 35, 95), moisture: clamp(cur.moisture + (rnd() - 0.5) * 0.3, 8, 18) };
       }
-      return { name: b.name, hist: hist };
+      return { letter: b.letter, crop: b.crop, hist: hist };
     });
   }
   function stepMonitor() {
@@ -585,7 +686,7 @@
     var svg = document.createElementNS(NS, 'svg');
     svg.setAttribute('viewBox', '0 0 ' + w + ' ' + hgt);
     svg.setAttribute('width', w); svg.setAttribute('height', hgt);
-    svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'Humidity trend');
+    svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', T('spark_aria'));
     var pts = values.map(function (v, i) {
       return (i * (w - 2) / (values.length - 1) + 1).toFixed(1) + ',' + (hgt - 2 - (v - lo) / (hi - lo) * (hgt - 4)).toFixed(1);
     }).join(' ');
@@ -594,7 +695,6 @@
     svg.appendChild(pl);
     return svg;
   }
-  var STATUS_TEXT = { ok: 'Safe', warn: 'Watch', danger: 'Act now' };
   function cell(field, v, digits) {
     var st = Lib.fieldStatus(field, v);
     return h('td', { class: 'num cell-' + st }, v.toFixed(digits));
@@ -606,12 +706,13 @@
       var r = b.hist[b.hist.length - 1];
       var st = Lib.readingStatus(r);
       body.append(h('tr', null,
-        h('th', { scope: 'row', text: b.name }),
+        h('th', { scope: 'row', text: T('store_n', { l: b.letter }) + ', ' + cropLabel(b.crop) }),
         cell('temp', r.temp, 1), cell('humidity', r.humidity, 0), cell('moisture', r.moisture, 1),
-        h('td', null, h('span', { class: 'status status-' + st }, h('span', { class: 'dot', 'aria-hidden': 'true' }), STATUS_TEXT[st])),
+        h('td', null, h('span', { class: 'status status-' + st }, h('span', { class: 'dot', 'aria-hidden': 'true' }), T('st_' + st))),
         h('td', { class: 'spark' }, spark(b.hist.map(function (x) { return x.humidity; }), 35, 95))));
     });
   }
+  /* The technical log is for judges and stays in English. */
   function renderLog() {
     var s = Loc.state;
     $('#logState').textContent = s.status + (s.source ? ' (' + s.source + ')' : '');
@@ -619,7 +720,7 @@
     var ul = $('#logList');
     ul.replaceChildren.apply(ul, Loc.log.map(function (e) { return h('li', null, h('time', { text: e.t }), ' ' + e.msg); }));
   }
- 
+
   /* ---------- Manual location dialog ---------- */
   function setupManual() {
     var dlg = $('#manualDialog');
@@ -631,19 +732,19 @@
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var q = input.value.trim();
-      if (q.length < 3 || q === lastQ) { msg.textContent = q.length < 3 ? 'Type at least 3 letters.' : ''; return; }
+      if (q.length < 3 || q === lastQ) { msg.textContent = q.length < 3 ? T('dlg_min') : ''; return; }
       lastQ = q;
-      msg.textContent = 'Searching...';
+      msg.textContent = T('dlg_searching');
       results.replaceChildren();
       Loc.search(q).then(function (arr) {
-        if (!arr.length) { msg.textContent = 'No match found. Try a nearby town or district name.'; return; }
-        msg.textContent = 'Choose your place:';
+        if (!arr.length) { msg.textContent = T('dlg_nomatch'); return; }
+        msg.textContent = T('dlg_choose');
         arr.forEach(function (item) {
           var b = h('button', { type: 'button', class: 'result-btn', text: item.label });
           b.addEventListener('click', function () { Loc.useManual(item); dlg.close(); });
           results.append(h('li', null, b));
         });
-      }).catch(function () { msg.textContent = 'Search failed. Please try again.'; lastQ = ''; });
+      }).catch(function () { msg.textContent = T('dlg_fail'); lastQ = ''; });
     });
     $('#manualClose').addEventListener('click', function () { dlg.close(); });
     return function open() {
@@ -652,7 +753,36 @@
       input.focus();
     };
   }
- 
+
+  /* ---------- Language switch ---------- */
+  var LANG_KEY = 'anaj.lang';
+  function savedLang() { try { return localStorage.getItem(LANG_KEY); } catch (e) { return null; } }
+  function saveLang(l) { try { localStorage.setItem(LANG_KEY, l); } catch (e) { /* ignore */ } }
+
+  function paintLangButtons() {
+    var cur = I.getLang();
+    $$('.lang-switch button').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-lang') === cur ? 'true' : 'false'); });
+  }
+
+  function redrawEverything() {
+    I.apply();
+    updateRadiusLabels();
+    renderAll();
+    redrawWeather();
+    renderInventory();
+    renderMonitor();
+    Nearby.run();
+    paintLangButtons();
+  }
+
+  function switchLanguage(l) {
+    if (I.getLang() === l) return;
+    I.setLang(l);
+    saveLang(l);
+    redrawEverything();
+    Loc.relocalize(); /* area name in the new language, when it is not the demo location */
+  }
+
   /* ---------- Wiring ---------- */
   function renderAll() {
     renderPanel();
@@ -660,7 +790,7 @@
     renderSupport();
     renderLog();
   }
- 
+
   var openManual = function () {};
   var lastCoordKey = '';
   Loc.subscribe(function (s) {
@@ -673,8 +803,10 @@
       renderLog();
     }
   });
- 
+
   document.addEventListener('click', function (e) {
+    var lb = e.target.closest('[data-lang]');
+    if (lb) { switchLanguage(lb.getAttribute('data-lang')); return; }
     var t = e.target.closest('[data-action]');
     if (!t) return;
     var a = t.getAttribute('data-action');
@@ -690,24 +822,29 @@
       var items = loadInv(); items.splice(parseInt(t.getAttribute('data-idx'), 10), 1); saveInv(items); renderInventory();
     }
   });
- 
+
   function init() {
+    I.setLang(I.detect(savedLang(), navigator.language));
+    I.apply();
+    updateRadiusLabels();
+    paintLangButtons();
+
     openManual = setupManual();
-    $$('.seg button').forEach(function (b) {
+    $$('.nearby-controls .seg button').forEach(function (b) {
       b.addEventListener('click', function () {
-        $$('.seg button').forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+        $$('.nearby-controls .seg button').forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
         Nearby.kind = b.getAttribute('data-kind');
         Nearby.run();
       });
     });
     $('#radius').addEventListener('change', function (e) { Nearby.radiusKm = parseInt(e.target.value, 10); Nearby.run(); });
- 
+
     $('#invForm').addEventListener('submit', function (e) {
       e.preventDefault();
       var f = e.target;
       var els = f.elements;
       var qty = parseFloat(els.qty.value);
-      if (!isFinite(qty) || qty <= 0) { $('#invMsg').textContent = 'Enter a quantity greater than zero.'; return; }
+      if (!isFinite(qty) || qty <= 0) { $('#invMsg').textContent = T('inv_qty_err'); return; }
       $('#invMsg').textContent = '';
       var items = loadInv();
       items.push({ crop: els.crop.value, qty: qty, place: els.place.value.trim().slice(0, 60), date: els.date.value });
@@ -715,17 +852,17 @@
       f.reset();
       renderInventory();
     });
- 
+
     $('#monStep').addEventListener('click', function () { stepMonitor(); renderMonitor(); });
     $('#monReset').addEventListener('click', function () { resetMonitor(); renderMonitor(); });
- 
+
     resetMonitor(); renderMonitor();
     renderInventory();
     renderAll();
-    renderWeather('none'); renderRisk('none');
+    showWeather('none');
     Nearby.run();
     if (window.L) Nearby.ensureMap();
- 
+
     /* If the user already granted permission earlier, fetch silently. Never prompts. */
     if (navigator.permissions && navigator.permissions.query) {
       navigator.permissions.query({ name: 'geolocation' }).then(function (p) {
@@ -734,7 +871,7 @@
       }).catch(function () { /* not supported, wait for the button */ });
     }
   }
- 
+
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 })();
