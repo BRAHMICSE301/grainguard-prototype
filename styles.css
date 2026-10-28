@@ -217,6 +217,8 @@ input, select { font: inherit; font-weight: 400; font-size: 17px; padding: 10px 
 .log h3 { margin-bottom: var(--s2); color: var(--gold); font-size: 14px; text-transform: uppercase; letter-spacing: .08em; }
 .log p { margin: 0 0 var(--s1); }
 .log-counts { color: #bdb7a3; font-size: 13px; }
+.log .log-intro { color: #bdb7a3; font-size: 13px; margin-bottom: var(--s3); }
+.mon-note + .mon-note { margin-top: var(--s2); }
 .log-list { list-style: none; margin: var(--s3) 0 0; padding: 0; font-size: 13px; }
 .log-list li { padding: 4px 0; border-top: 1px solid #4a4a42; color: #d8d2bf; }
 .log-list time { color: var(--gold); font-variant-numeric: tabular-nums; margin-right: 6px; }
