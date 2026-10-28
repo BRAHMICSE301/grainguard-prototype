@@ -872,6 +872,8 @@
     }
   }
 
+  window.AnajApp = { version: 3 }; /* lets index.html confirm this file loaded and is current */
+
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 })();
