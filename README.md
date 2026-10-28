@@ -27,6 +27,16 @@ After harvest, grain is often lost to **damp, mould and insects**. Most of this 
 
 ---
 
+## English and Hindi
+
+A switch at the top right changes the whole site between **English** and **हिन्दी** without reloading the page. The site starts in Hindi for browsers set to Hindi, and remembers the farmer's choice on their device.
+
+In Hindi, the farmer's area name also appears in Hindi, for example *गुरुग्राम, हरियाणा*. The technical log for judges stays in English.
+
+The Hindi wording is written in simple everyday language, but it should be read by a native Hindi speaker before real use.
+
+---
+
 ## How location works
 
 1. **Nothing is requested when the page opens.** The browser's permission prompt appears only when the farmer presses the button.
@@ -85,7 +95,8 @@ HTML, CSS and JavaScript. No framework, no build step and no API keys.
 |---|---|
 | `index.html` | The page |
 | `styles.css` | The visual design |
-| `app.js` | Location, weather, nearby search, inventory and monitor |
+| `i18n.js` | All text in English and Hindi |
+| `app.js` | Location, weather, nearby search, inventory, monitor and the language switch |
 | `lib.js` | Rules and calculations, such as storage risk and distance |
 | `tests.js` | Automatic checks for `lib.js` |
 
