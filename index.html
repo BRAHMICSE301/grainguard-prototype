@@ -4,18 +4,22 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Anaj | Grain storage guidance for farmers</title>
-  <meta name="description" content="Find grain storage near you, check storage risk from local weather, and keep track of what is in your store.">
+  <meta name="description" content="Find grain storage near you, check storage risk from local weather, and keep track of what is in your store. Available in English and Hindi.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;700&display=swap">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="styles.css">
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+  <script src="i18n.js" defer></script>
   <script src="lib.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
-  <a class="skip" href="#main">Skip to content</a>
+  <a class="skip" href="#main" data-i18n="skip">Skip to content</a>
 
   <header class="site-header">
-    <a class="brand" href="#home" aria-label="Anaj home">
+    <a class="brand" href="#home" aria-label="Anaj">
       <svg viewBox="0 0 24 32" width="18" height="24" aria-hidden="true" fill="currentColor">
         <path d="M12 31V9" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/>
         <ellipse cx="8.4" cy="12" rx="2.2" ry="4.2" transform="rotate(-28 8.4 12)"/>
@@ -24,15 +28,19 @@
         <ellipse cx="15.6" cy="19" rx="2.2" ry="4.2" transform="rotate(28 15.6 19)"/>
         <ellipse cx="12" cy="6" rx="2" ry="4"/>
       </svg>
-      <span>Anaj</span>
+      <span data-i18n="brand">Anaj</span>
     </a>
     <nav aria-label="Main">
-      <a href="#dashboard">Today</a>
-      <a href="#guide">Storage guide</a>
-      <a href="#nearby">Nearby</a>
-      <a href="#inventory">My store</a>
-      <a href="#monitor" class="nav-tech">Monitor</a>
+      <a href="#dashboard" data-i18n="nav_today">Today</a>
+      <a href="#guide" data-i18n="nav_guide">Storage guide</a>
+      <a href="#nearby" data-i18n="nav_nearby">Nearby</a>
+      <a href="#inventory" data-i18n="nav_store">My store</a>
+      <a href="#monitor" class="nav-tech"><span data-i18n="nav_monitor">Monitor</span><span class="nav-tag" data-i18n="nav_judges">judges</span></a>
     </nav>
+    <div class="lang-switch" role="group" aria-label="Language" data-i18n-aria="lang_aria">
+      <button type="button" data-lang="en" aria-pressed="true" lang="en">English</button>
+      <button type="button" data-lang="hi" aria-pressed="false" lang="hi">हिन्दी</button>
+    </div>
   </header>
 
   <main id="main">
@@ -40,15 +48,15 @@
     <!-- Hero: editorial layout -->
     <section class="hero" id="home">
       <div class="hero-text">
-        <p class="eyebrow">Grain storage guidance for Indian farmers</p>
-        <h1>Keep the harvest dry. Know when the weather turns against it.</h1>
-        <p class="lede">Anaj shows grain stores near your village, tells you what today's weather means for stored grain, and keeps a simple record of what you have in store.</p>
+        <p class="eyebrow" data-i18n="hero_eyebrow">Grain storage guidance for Indian farmers</p>
+        <h1 data-i18n="hero_h1">Keep the harvest dry. Know when the weather turns against it.</h1>
+        <p class="lede" data-i18n="hero_lede">Anaj shows grain stores near your village, tells you what today's weather means for stored grain, and keeps a simple record of what you have in store.</p>
 
         <div class="loc-panel" id="locPanel" aria-live="polite">
-          <p class="loc-title">Find storage facilities near you</p>
-          <p class="loc-help">Turn on JavaScript to use location features.</p>
+          <p class="loc-title" data-i18n="loc_find_title">Find storage facilities near you</p>
+          <p class="loc-help" data-i18n="js_needed">Turn on JavaScript to use location features.</p>
         </div>
-        <p class="privacy">Your location is requested only when you press the button. It is not tracked, and exact coordinates are not saved. Place names come from OpenStreetMap, and weather from Open-Meteo. Both receive your approximate coordinates to answer.</p>
+        <p class="privacy" data-i18n="privacy">Your location is requested only when you press the button. It is not tracked, and exact coordinates are not saved. Place names come from OpenStreetMap, and weather from Open-Meteo. Both receive your approximate coordinates to answer.</p>
       </div>
 
       <div class="hero-art" aria-hidden="true">
@@ -86,7 +94,7 @@
           <path d="M0 440 Q100 420 200 436 T400 428 V520 H0Z" fill="#6b4a2f"/>
           <path d="M0 470 Q120 452 220 466 T400 458 V520 H0Z" fill="#54391f"/>
         </svg>
-        <p class="art-caption">Wheat, the grain most often stored on Indian farms</p>
+        <p class="art-caption" data-i18n="art_caption">A wheat ear</p>
       </div>
     </section>
 
@@ -94,9 +102,9 @@
     <section class="dash" id="dashboard" aria-labelledby="greeting">
       <div class="dash-head">
         <div>
-          <p class="eyebrow">Today</p>
+          <p class="eyebrow" data-i18n="dash_eyebrow">Today</p>
           <h2 id="greeting">Good morning, Farmer!</h2>
-          <p id="areaLine" class="area-line" aria-live="polite">Your area is not set.</p>
+          <p id="areaLine" class="area-line" aria-live="polite" data-i18n="area_unset_static">Your area is not set.</p>
         </div>
         <div class="dash-actions" id="dashActions"></div>
       </div>
@@ -110,56 +118,32 @@
     <!-- Storage guide: numbered steps on a ruled line -->
     <section class="guide" id="guide" aria-labelledby="guideTitle">
       <div class="section-head">
-        <p class="eyebrow">Storage guide</p>
-        <h2 id="guideTitle">Six steps from field to store</h2>
-        <p class="section-note">General good practice. Safe moisture levels differ by crop and region, so confirm the figure for your crop with your local Krishi Vigyan Kendra.</p>
+        <p class="eyebrow" data-i18n="guide_eyebrow">Storage guide</p>
+        <h2 id="guideTitle" data-i18n="guide_title">Six steps from field to store</h2>
+        <p class="section-note" data-i18n="guide_note">General good practice. Safe moisture levels differ by crop and region, so confirm the figure for your crop with your local Krishi Vigyan Kendra.</p>
       </div>
       <ol class="steps">
-        <li>
-          <span class="step-n">1</span>
-          <h3>Dry the grain</h3>
-          <p>Dry well in the sun before storing. Wheat is commonly stored at about 12% moisture or less, paddy at about 14% or less.</p>
-        </li>
-        <li>
-          <span class="step-n">2</span>
-          <h3>Clean it</h3>
-          <p>Remove straw, dust, broken grain and weed seed. Cleaner grain keeps longer and attracts fewer insects.</p>
-        </li>
-        <li>
-          <span class="step-n">3</span>
-          <h3>Prepare the store</h3>
-          <p>Sweep the floor and walls, close cracks and repair leaks. Clean out old grain from earlier seasons.</p>
-        </li>
-        <li>
-          <span class="step-n">4</span>
-          <h3>Keep it off the ground</h3>
-          <p>Stack bags on wooden pallets or dry dunnage, away from walls, with space to walk around the stack.</p>
-        </li>
-        <li>
-          <span class="step-n">5</span>
-          <h3>Keep it dry and shut</h3>
-          <p>Keep doors and vents closed in humid or rainy weather. Open for air on dry days.</p>
-        </li>
-        <li>
-          <span class="step-n">6</span>
-          <h3>Check regularly</h3>
-          <p>Look and smell for damp, mould, heating or insects. Act early, and ask your KVK about safe treatment.</p>
-        </li>
+        <li><span class="step-n">1</span><h3 data-i18n="s1h">Dry the grain</h3><p data-i18n="s1p">Dry well in the sun before storing. Wheat is commonly stored at about 12% moisture or less, paddy at about 14% or less.</p></li>
+        <li><span class="step-n">2</span><h3 data-i18n="s2h">Clean it</h3><p data-i18n="s2p">Remove straw, dust, broken grain and weed seed. Cleaner grain keeps longer and attracts fewer insects.</p></li>
+        <li><span class="step-n">3</span><h3 data-i18n="s3h">Prepare the store</h3><p data-i18n="s3p">Sweep the floor and walls, close cracks and repair leaks. Clean out old grain from earlier seasons.</p></li>
+        <li><span class="step-n">4</span><h3 data-i18n="s4h">Keep it off the ground</h3><p data-i18n="s4p">Stack bags on wooden pallets or dry dunnage, away from walls, with space to walk around the stack.</p></li>
+        <li><span class="step-n">5</span><h3 data-i18n="s5h">Keep it dry and shut</h3><p data-i18n="s5p">Keep doors and vents closed in humid or rainy weather. Open for air on dry days.</p></li>
+        <li><span class="step-n">6</span><h3 data-i18n="s6h">Check regularly</h3><p data-i18n="s6p">Look and smell for damp, mould, heating or insects. Act early, and ask your KVK about safe treatment.</p></li>
       </ol>
     </section>
 
     <!-- Nearby: map first -->
     <section class="nearby" id="nearby" aria-labelledby="nearbyTitle">
       <div class="section-head">
-        <p class="eyebrow">Nearby</p>
-        <h2 id="nearbyTitle">Places near you</h2>
+        <p class="eyebrow" data-i18n="nb_eyebrow">Nearby</p>
+        <h2 id="nearbyTitle" data-i18n="nb_title">Places near you</h2>
       </div>
       <div class="nearby-controls">
-        <div class="seg" role="group" aria-label="What to look for">
-          <button type="button" data-kind="storage" aria-pressed="true">Grain storage</button>
-          <button type="button" data-kind="support" aria-pressed="false">Agricultural support</button>
+        <div class="seg" role="group" aria-label="What to look for" data-i18n-aria="seg_aria">
+          <button type="button" data-kind="storage" aria-pressed="true" data-i18n="seg_storage">Grain storage</button>
+          <button type="button" data-kind="support" aria-pressed="false" data-i18n="seg_support">Agricultural support</button>
         </div>
-        <label class="inline-field">Within
+        <label class="inline-field"><span data-i18n="within">Within</span>
           <select id="radius">
             <option value="10">10 km</option>
             <option value="25" selected>25 km</option>
@@ -167,9 +151,9 @@
           </select>
         </label>
       </div>
-      <p id="nearbyStatus" class="nearby-status" aria-live="polite">Set your location to see nearby places.</p>
+      <p id="nearbyStatus" class="nearby-status" aria-live="polite" data-i18n="nb_prompt">Set your location to see nearby places.</p>
       <div class="nearby-body">
-        <div id="map" class="map" role="region" aria-label="Map of nearby places"></div>
+        <div id="map" class="map" role="region" aria-label="Map of nearby places" data-i18n-aria="map_aria"></div>
         <ol id="nearbyList" class="place-list"></ol>
       </div>
     </section>
@@ -177,33 +161,45 @@
     <!-- Inventory: simple, large inputs -->
     <section class="inventory" id="inventory" aria-labelledby="invTitle">
       <div class="section-head">
-        <p class="eyebrow">My store</p>
-        <h2 id="invTitle">What is in your store</h2>
-        <p class="section-note">Saved only on this device. Nothing is sent anywhere.</p>
+        <p class="eyebrow" data-i18n="inv_eyebrow">My store</p>
+        <h2 id="invTitle" data-i18n="inv_title">What is in your store</h2>
+        <p class="section-note" data-i18n="inv_note">Saved only on this device. Nothing is sent anywhere.</p>
       </div>
       <div class="inv-body">
         <form id="invForm" class="form" autocomplete="off">
-          <label>Crop
+          <label><span data-i18n="f_crop">Crop</span>
             <select name="crop" required>
-              <option>Wheat</option><option>Paddy</option><option>Rice</option><option>Maize</option><option>Bajra</option><option>Pulses</option><option>Other</option>
+              <option value="Wheat" data-i18n="crop_wheat">Wheat</option>
+              <option value="Paddy" data-i18n="crop_paddy">Paddy</option>
+              <option value="Rice" data-i18n="crop_rice">Rice</option>
+              <option value="Maize" data-i18n="crop_maize">Maize</option>
+              <option value="Bajra" data-i18n="crop_bajra">Bajra</option>
+              <option value="Pulses" data-i18n="crop_pulses">Pulses</option>
+              <option value="Other" data-i18n="crop_other">Other</option>
             </select>
           </label>
-          <label>Quantity (quintal)
+          <label><span data-i18n="f_qty">Quantity (quintal)</span>
             <input name="qty" type="number" inputmode="decimal" min="0.1" step="0.1" required>
           </label>
-          <label>Where it is kept
-            <input name="place" type="text" maxlength="60" placeholder="For example, home store room">
+          <label><span data-i18n="f_place">Where it is kept</span>
+            <input name="place" type="text" maxlength="60" placeholder="For example, home store room" data-i18n-placeholder="f_place_ph">
           </label>
-          <label>Date stored
+          <label><span data-i18n="f_date">Date stored</span>
             <input name="date" type="date">
           </label>
-          <button class="btn btn-primary" type="submit">Add to my store</button>
+          <button class="btn btn-primary" type="submit" data-i18n="btn_add">Add to my store</button>
           <p id="invMsg" class="form-msg" role="alert"></p>
         </form>
         <div>
-          <p id="invEmpty" class="muted">Nothing added yet.</p>
+          <p id="invEmpty" class="muted" data-i18n="inv_empty">Nothing added yet.</p>
           <table id="invTable" class="table" hidden>
-            <thead><tr><th scope="col">Crop</th><th scope="col" class="num">Quintal</th><th scope="col">Kept at</th><th scope="col">Stored on</th><th scope="col"><span class="sr">Remove</span></th></tr></thead>
+            <thead><tr>
+              <th scope="col" data-i18n="th_crop">Crop</th>
+              <th scope="col" class="num" data-i18n="th_qty">Quintal</th>
+              <th scope="col" data-i18n="th_place">Kept at</th>
+              <th scope="col" data-i18n="th_date">Stored on</th>
+              <th scope="col"><span class="sr" data-i18n="th_remove">Remove</span></th>
+            </tr></thead>
             <tbody id="invBody"></tbody>
           </table>
           <p id="invTotals" class="totals"></p>
@@ -214,31 +210,38 @@
     <!-- Monitor: technical view for judges -->
     <section class="monitor" id="monitor" aria-labelledby="monTitle">
       <div class="section-head">
-        <p class="eyebrow">Monitoring view</p>
-        <h2 id="monTitle">Store monitor</h2>
-        <p class="section-note mon-note"><strong>What is this?</strong> It shows the idea for a future feature. A farmer could place small sensors in a store. Each store's temperature, humidity and grain moisture would appear here, and the status would turn to <em>Watch</em> or <em>Act now</em> before the grain spoils.</p>
-        <p class="section-note mon-note"><strong>These numbers are simulated.</strong> No sensors are connected. Press "Simulate next reading" to see how the status changes.</p>
+        <p class="eyebrow" data-i18n="mon_eyebrow">Monitoring view</p>
+        <h2 id="monTitle" data-i18n="mon_title">Store monitor</h2>
+        <p class="section-note mon-note" data-i18n-html="mon_what"></p>
+        <p class="section-note mon-note" data-i18n-html="mon_sim"></p>
       </div>
       <div class="mon-grid">
         <div>
           <div class="table-wrap">
             <table class="table mon-table">
               <thead>
-                <tr><th scope="col">Store</th><th scope="col" class="num">Temp (°C)</th><th scope="col" class="num">Humidity (%)</th><th scope="col" class="num">Grain moisture (%)</th><th scope="col">Status</th><th scope="col">Humidity, last 12</th></tr>
+                <tr>
+                  <th scope="col" data-i18n="th_store">Store</th>
+                  <th scope="col" class="num" data-i18n="th_temp">Temp (°C)</th>
+                  <th scope="col" class="num" data-i18n="th_hum">Humidity (%)</th>
+                  <th scope="col" class="num" data-i18n="th_moist">Grain moisture (%)</th>
+                  <th scope="col" data-i18n="th_status">Status</th>
+                  <th scope="col" data-i18n="th_trend">Humidity, last 12</th>
+                </tr>
               </thead>
               <tbody id="monBody"></tbody>
             </table>
           </div>
           <div class="mon-actions">
-            <button id="monStep" type="button" class="btn btn-small">Simulate next reading</button>
-            <button id="monReset" type="button" class="btn btn-small">Reset</button>
+            <button id="monStep" type="button" class="btn btn-small" data-i18n="btn_step">Simulate next reading</button>
+            <button id="monReset" type="button" class="btn btn-small" data-i18n="btn_reset">Reset</button>
           </div>
-          <p class="mon-limits">Limits used (wheat, for demonstration): temperature watch at 30 °C and act at 35 °C; humidity watch at 70% and act at 80%; grain moisture watch at 12% and act at 14%. Status always shows a word as well as a colour.</p>
+          <p class="mon-limits" data-i18n="mon_limits">Limits used (wheat, for demonstration): temperature watch at 30 °C and act at 35 °C; humidity watch at 70% and act at 80%; grain moisture watch at 12% and act at 14%. Status always shows a word as well as a colour.</p>
         </div>
-        <aside class="log" aria-label="Location service log">
-          <h3>Technical log</h3>
-          <p class="log-intro">For judges. It shows, step by step, what the location feature is doing behind the scenes. Farmers do not need it.</p>
-          <p>Location state: <strong id="logState">idle</strong></p>
+        <aside class="log" aria-label="Location service log" data-i18n-aria="log_aria">
+          <h3 data-i18n="log_title">Technical log</h3>
+          <p class="log-intro" data-i18n="log_intro">For judges. It shows, step by step, what the location feature is doing behind the scenes. Farmers do not need it. Entries are in English.</p>
+          <p><span data-i18n="log_state">Location state:</span> <strong id="logState">idle</strong></p>
           <p id="logCounts" class="log-counts"></p>
           <ol id="logList" class="log-list"></ol>
         </aside>
@@ -248,19 +251,19 @@
   </main>
 
   <footer class="site-footer">
-    <p>Anaj is a hackathon prototype. Weather is from Open-Meteo. Place names and nearby listings are from OpenStreetMap contributors and may be incomplete. Storage guidance is general and is not a substitute for advice from your local agriculture office.</p>
+    <p data-i18n="footer">Anaj is a hackathon prototype. Weather is from Open-Meteo. Place names and nearby listings are from OpenStreetMap contributors and may be incomplete. Storage guidance is general and is not a substitute for advice from your local agriculture office.</p>
   </footer>
 
   <dialog id="manualDialog" aria-labelledby="manualTitle">
     <form id="manualForm" class="form">
-      <h2 id="manualTitle">Choose a place</h2>
-      <p class="muted">Type your village, town or district. This is optional. The location button is the easier way.</p>
-      <label>Place name
+      <h2 id="manualTitle" data-i18n="dlg_title">Choose a place</h2>
+      <p class="muted" data-i18n="dlg_help">Type your village, town or district. This is optional. The location button is the easier way.</p>
+      <label><span data-i18n="f_place_name">Place name</span>
         <input id="manualQ" type="text" maxlength="80" autocomplete="off">
       </label>
       <div class="dialog-actions">
-        <button type="submit" class="btn btn-primary">Search</button>
-        <button type="button" id="manualClose" class="btn">Close</button>
+        <button type="submit" class="btn btn-primary" data-i18n="btn_search">Search</button>
+        <button type="button" id="manualClose" class="btn" data-i18n="btn_close">Close</button>
       </div>
       <p id="manualMsg" class="form-msg" aria-live="polite"></p>
       <ul id="manualResults" class="results"></ul>
