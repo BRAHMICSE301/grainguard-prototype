@@ -61,6 +61,8 @@ t('buildOverpassQuery: clamps radius and includes coordinates', () => {
   const s = L.buildOverpassQuery('support', 28, 77, 25000);
   assert.ok(s.includes('"shop"="agrarian"'));
   assert.ok(L.buildOverpassQuery('storage', 28, 77, 'abc').includes('around:25000'));
+  assert.ok(!s.includes('~'), 'support query should not use slow regex matching');
+  assert.ok(s.includes('[timeout:15]'));
 });
 
 t('parseOverpass: nodes, ways with center, unnamed fallback, sorting', () => {
