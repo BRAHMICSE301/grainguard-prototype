@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Anaj | Grain storage guidance for farmers</title>
+  <meta name="description" content="Find grain storage near you, check storage risk from local weather, and keep track of what is in your store.">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+  <script src="lib.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <a class="brand" href="#home" aria-label="Anaj home">
+      <svg viewBox="0 0 24 32" width="18" height="24" aria-hidden="true" fill="currentColor">
+        <path d="M12 31V9" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+        <ellipse cx="8.4" cy="12" rx="2.2" ry="4.2" transform="rotate(-28 8.4 12)"/>
+        <ellipse cx="15.6" cy="12" rx="2.2" ry="4.2" transform="rotate(28 15.6 12)"/>
+        <ellipse cx="8.4" cy="19" rx="2.2" ry="4.2" transform="rotate(-28 8.4 19)"/>
+        <ellipse cx="15.6" cy="19" rx="2.2" ry="4.2" transform="rotate(28 15.6 19)"/>
+        <ellipse cx="12" cy="6" rx="2" ry="4"/>
+      </svg>
+      <span>Anaj</span>
+    </a>
+    <nav aria-label="Main">
+      <a href="#dashboard">Today</a>
+      <a href="#guide">Storage guide</a>
+      <a href="#nearby">Nearby</a>
+      <a href="#inventory">My store</a>
+      <a href="#monitor" class="nav-tech">Monitor</a>
+    </nav>
+  </header>
+
+  <main id="main">
+
+    <!-- Hero: editorial layout -->
+    <section class="hero" id="home">
+      <div class="hero-text">
+        <p class="eyebrow">Grain storage guidance for Indian farmers</p>
+        <h1>Keep the harvest dry. Know when the weather turns against it.</h1>
+        <p class="lede">Anaj shows grain stores near your village, tells you what today's weather means for stored grain, and keeps a simple record of what you have in store.</p>
+
+        <div class="loc-panel" id="locPanel" aria-live="polite">
+          <p class="loc-title">Find storage facilities near you</p>
+          <p class="loc-help">Turn on JavaScript to use location features.</p>
+        </div>
+        <p class="privacy">Your location is requested only when you press the button. It is not tracked, and exact coordinates are not saved. Place names come from OpenStreetMap, and weather from Open-Meteo. Both receive your approximate coordinates to answer.</p>
+      </div>
+
+      <div class="hero-art" aria-hidden="true">
+        <svg viewBox="0 0 400 520" role="img" focusable="false">
+          <defs>
+            <g id="ear">
+              <path d="M0 330 V40" stroke="#c99a2e" stroke-width="3" fill="none" stroke-linecap="round"/>
+              <g fill="#c99a2e">
+                <ellipse cx="-11" cy="70" rx="7" ry="15" transform="rotate(-26 -11 70)"/>
+                <ellipse cx="11" cy="70" rx="7" ry="15" transform="rotate(26 11 70)"/>
+                <ellipse cx="-11" cy="102" rx="7" ry="15" transform="rotate(-26 -11 102)"/>
+                <ellipse cx="11" cy="102" rx="7" ry="15" transform="rotate(26 11 102)"/>
+                <ellipse cx="-11" cy="134" rx="7" ry="15" transform="rotate(-26 -11 134)"/>
+                <ellipse cx="11" cy="134" rx="7" ry="15" transform="rotate(26 11 134)"/>
+                <ellipse cx="-10" cy="166" rx="6.5" ry="14" transform="rotate(-26 -10 166)"/>
+                <ellipse cx="10" cy="166" rx="6.5" ry="14" transform="rotate(26 10 166)"/>
+                <ellipse cx="0" cy="44" rx="6" ry="14"/>
+              </g>
+              <g stroke="#c99a2e" stroke-width="1.2" stroke-linecap="round" opacity=".7">
+                <path d="M0 30 V-40"/>
+                <path d="M-15 58 L-40 -6"/><path d="M15 58 L40 -6"/>
+                <path d="M-15 90 L-42 28"/><path d="M15 90 L42 28"/>
+                <path d="M-15 122 L-42 62"/><path d="M15 122 L42 62"/>
+              </g>
+              <path d="M0 250 Q-60 230 -90 170" stroke="#c99a2e" stroke-width="3" fill="none" stroke-linecap="round" opacity=".8"/>
+            </g>
+          </defs>
+          <rect width="400" height="520" fill="#1f3d2b"/>
+          <g stroke="#f6f0e1" stroke-opacity=".12" stroke-width="1">
+            <path d="M0 440H400"/><path d="M0 460H400"/><path d="M0 480H400"/><path d="M0 500H400"/>
+          </g>
+          <use href="#ear" transform="translate(110 130) rotate(-9)"/>
+          <use href="#ear" transform="translate(205 100)"/>
+          <use href="#ear" transform="translate(300 135) rotate(9)"/>
+          <path d="M0 440 Q100 420 200 436 T400 428 V520 H0Z" fill="#6b4a2f"/>
+          <path d="M0 470 Q120 452 220 466 T400 458 V520 H0Z" fill="#54391f"/>
+        </svg>
+        <p class="art-caption">Wheat, the grain most often stored on Indian farms</p>
+      </div>
+    </section>
+
+    <!-- Dashboard: compact, ruled columns, not cards -->
+    <section class="dash" id="dashboard" aria-labelledby="greeting">
+      <div class="dash-head">
+        <div>
+          <p class="eyebrow">Today</p>
+          <h2 id="greeting">Good morning, Farmer!</h2>
+          <p id="areaLine" class="area-line" aria-live="polite">Your area is not set.</p>
+        </div>
+        <div class="dash-actions" id="dashActions"></div>
+      </div>
+      <div class="dash-cols">
+        <article id="weatherBox" class="col"></article>
+        <article id="riskBox" class="col"></article>
+        <article id="supportBox" class="col"></article>
+      </div>
+    </section>
+
+    <!-- Storage guide: numbered steps on a ruled line -->
+    <section class="guide" id="guide" aria-labelledby="guideTitle">
+      <div class="section-head">
+        <p class="eyebrow">Storage guide</p>
+        <h2 id="guideTitle">Six steps from field to store</h2>
+        <p class="section-note">General good practice. Safe moisture levels differ by crop and region, so confirm the figure for your crop with your local Krishi Vigyan Kendra.</p>
+      </div>
+      <ol class="steps">
+        <li>
+          <span class="step-n">1</span>
+          <h3>Dry the grain</h3>
+          <p>Dry well in the sun before storing. Wheat is commonly stored at about 12% moisture or less, paddy at about 14% or less.</p>
+        </li>
+        <li>
+          <span class="step-n">2</span>
+          <h3>Clean it</h3>
+          <p>Remove straw, dust, broken grain and weed seed. Cleaner grain keeps longer and attracts fewer insects.</p>
+        </li>
+        <li>
+          <span class="step-n">3</span>
+          <h3>Prepare the store</h3>
+          <p>Sweep the floor and walls, close cracks and repair leaks. Clean out old grain from earlier seasons.</p>
+        </li>
+        <li>
+          <span class="step-n">4</span>
+          <h3>Keep it off the ground</h3>
+          <p>Stack bags on wooden pallets or dry dunnage, away from walls, with space to walk around the stack.</p>
+        </li>
+        <li>
+          <span class="step-n">5</span>
+          <h3>Keep it dry and shut</h3>
+          <p>Keep doors and vents closed in humid or rainy weather. Open for air on dry days.</p>
+        </li>
+        <li>
+          <span class="step-n">6</span>
+          <h3>Check regularly</h3>
+          <p>Look and smell for damp, mould, heating or insects. Act early, and ask your KVK about safe treatment.</p>
+        </li>
+      </ol>
+    </section>
+
+    <!-- Nearby: map first -->
+    <section class="nearby" id="nearby" aria-labelledby="nearbyTitle">
+      <div class="section-head">
+        <p class="eyebrow">Nearby</p>
+        <h2 id="nearbyTitle">Places near you</h2>
+      </div>
+      <div class="nearby-controls">
+        <div class="seg" role="group" aria-label="What to look for">
+          <button type="button" data-kind="storage" aria-pressed="true">Grain storage</button>
+          <button type="button" data-kind="support" aria-pressed="false">Agricultural support</button>
+        </div>
+        <label class="inline-field">Within
+          <select id="radius">
+            <option value="10">10 km</option>
+            <option value="25" selected>25 km</option>
+            <option value="50">50 km</option>
+          </select>
+        </label>
+      </div>
+      <p id="nearbyStatus" class="nearby-status" aria-live="polite">Set your location to see nearby places.</p>
+      <div class="nearby-body">
+        <div id="map" class="map" role="region" aria-label="Map of nearby places"></div>
+        <ol id="nearbyList" class="place-list"></ol>
+      </div>
+    </section>
+
+    <!-- Inventory: simple, large inputs -->
+    <section class="inventory" id="inventory" aria-labelledby="invTitle">
+      <div class="section-head">
+        <p class="eyebrow">My store</p>
+        <h2 id="invTitle">What is in your store</h2>
+        <p class="section-note">Saved only on this device. Nothing is sent anywhere.</p>
+      </div>
+      <div class="inv-body">
+        <form id="invForm" class="form" autocomplete="off">
+          <label>Crop
+            <select name="crop" required>
+              <option>Wheat</option><option>Paddy</option><option>Rice</option><option>Maize</option><option>Bajra</option><option>Pulses</option><option>Other</option>
+            </select>
+          </label>
+          <label>Quantity (quintal)
+            <input name="qty" type="number" inputmode="decimal" min="0.1" step="0.1" required>
+          </label>
+          <label>Where it is kept
+            <input name="place" type="text" maxlength="60" placeholder="For example, home store room">
+          </label>
+          <label>Date stored
+            <input name="date" type="date">
+          </label>
+          <button class="btn btn-primary" type="submit">Add to my store</button>
+          <p id="invMsg" class="form-msg" role="alert"></p>
+        </form>
+        <div>
+          <p id="invEmpty" class="muted">Nothing added yet.</p>
+          <table id="invTable" class="table" hidden>
+            <thead><tr><th scope="col">Crop</th><th scope="col" class="num">Quintal</th><th scope="col">Kept at</th><th scope="col">Stored on</th><th scope="col"><span class="sr">Remove</span></th></tr></thead>
+            <tbody id="invBody"></tbody>
+          </table>
+          <p id="invTotals" class="totals"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Monitor: technical view for judges -->
+    <section class="monitor" id="monitor" aria-labelledby="monTitle">
+      <div class="section-head">
+        <p class="eyebrow">Monitoring view</p>
+        <h2 id="monTitle">Store monitor</h2>
+        <p class="section-note mon-note"><strong>Simulated data.</strong> No sensors are connected. This screen shows how readings from storage sensors would be checked against safe limits.</p>
+      </div>
+      <div class="mon-grid">
+        <div>
+          <div class="table-wrap">
+            <table class="table mon-table">
+              <thead>
+                <tr><th scope="col">Store</th><th scope="col" class="num">Temp (°C)</th><th scope="col" class="num">Humidity (%)</th><th scope="col" class="num">Grain moisture (%)</th><th scope="col">Status</th><th scope="col">Humidity, last 12</th></tr>
+              </thead>
+              <tbody id="monBody"></tbody>
+            </table>
+          </div>
+          <div class="mon-actions">
+            <button id="monStep" type="button" class="btn btn-small">Simulate next reading</button>
+            <button id="monReset" type="button" class="btn btn-small">Reset</button>
+          </div>
+          <p class="mon-limits">Limits used (wheat, for demonstration): temperature watch at 30 °C and act at 35 °C; humidity watch at 70% and act at 80%; grain moisture watch at 12% and act at 14%. Status always shows a word as well as a colour.</p>
+        </div>
+        <aside class="log" aria-label="Location service log">
+          <h3>Location service</h3>
+          <p>State: <strong id="logState">idle</strong></p>
+          <p id="logCounts" class="log-counts"></p>
+          <ol id="logList" class="log-list"></ol>
+        </aside>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <p>Anaj is a hackathon prototype. Weather is from Open-Meteo. Place names and nearby listings are from OpenStreetMap contributors and may be incomplete. Storage guidance is general and is not a substitute for advice from your local agriculture office.</p>
+  </footer>
+
+  <dialog id="manualDialog" aria-labelledby="manualTitle">
+    <form id="manualForm" class="form">
+      <h2 id="manualTitle">Choose a place</h2>
+      <p class="muted">Type your village, town or district. This is optional. The location button is the easier way.</p>
+      <label>Place name
+        <input id="manualQ" type="text" maxlength="80" autocomplete="off">
+      </label>
+      <div class="dialog-actions">
+        <button type="submit" class="btn btn-primary">Search</button>
+        <button type="button" id="manualClose" class="btn">Close</button>
+      </div>
+      <p id="manualMsg" class="form-msg" aria-live="polite"></p>
+      <ul id="manualResults" class="results"></ul>
+    </form>
+  </dialog>
+</body>
+</html>
