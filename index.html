@@ -216,7 +216,8 @@
       <div class="section-head">
         <p class="eyebrow">Monitoring view</p>
         <h2 id="monTitle">Store monitor</h2>
-        <p class="section-note mon-note"><strong>Simulated data.</strong> No sensors are connected. This screen shows how readings from storage sensors would be checked against safe limits.</p>
+        <p class="section-note mon-note"><strong>What is this?</strong> It shows the idea for a future feature. A farmer could place small sensors in a store. Each store's temperature, humidity and grain moisture would appear here, and the status would turn to <em>Watch</em> or <em>Act now</em> before the grain spoils.</p>
+        <p class="section-note mon-note"><strong>These numbers are simulated.</strong> No sensors are connected. Press "Simulate next reading" to see how the status changes.</p>
       </div>
       <div class="mon-grid">
         <div>
@@ -235,8 +236,9 @@
           <p class="mon-limits">Limits used (wheat, for demonstration): temperature watch at 30 °C and act at 35 °C; humidity watch at 70% and act at 80%; grain moisture watch at 12% and act at 14%. Status always shows a word as well as a colour.</p>
         </div>
         <aside class="log" aria-label="Location service log">
-          <h3>Location service</h3>
-          <p>State: <strong id="logState">idle</strong></p>
+          <h3>Technical log</h3>
+          <p class="log-intro">For judges. It shows, step by step, what the location feature is doing behind the scenes. Farmers do not need it.</p>
+          <p>Location state: <strong id="logState">idle</strong></p>
           <p id="logCounts" class="log-counts"></p>
           <ol id="logList" class="log-list"></ol>
         </aside>
